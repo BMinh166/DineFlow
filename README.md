@@ -21,8 +21,9 @@ npm run dev
 ```powershell
 cd server
 Copy-Item .env.example .env
+# Set MONGODB_URI in .env before starting the backend.
 npm install
 npm run dev
 ```
 
-The server environment file intentionally contains placeholders only. MongoDB connection, API routes, error handling, and product features are not part of this bootstrap task.
+The backend starts only after connecting to MongoDB. Its foundation health endpoint is available at `GET /api/health`.
