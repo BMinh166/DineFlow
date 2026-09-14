@@ -1,5 +1,7 @@
+import { AppRouter } from './router'
+
 function App() {
-  return <main className="app-bootstrap">DineFlow client bootstrap</main>
+  return <AppRouter />
 }
 
 export default App
