@@ -15,6 +15,13 @@ export const errorHandler: ErrorRequestHandler = (
     return
   }
 
+  if (isPayloadTooLargeError(error)) {
+    response
+      .status(413)
+      .json(errorResponse('Request body too large.', 'PAYLOAD_TOO_LARGE'))
+    return
+  }
+
   if (error instanceof AppError) {
     response.status(error.status).json(errorResponse(error.message, error.code))
     return
@@ -32,4 +39,14 @@ function isMalformedJsonError(error: unknown): boolean {
   const parserError = error as { status?: unknown; type?: unknown }
 
   return parserError.status === 400 && parserError.type === 'entity.parse.failed'
+}
+
+function isPayloadTooLargeError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+
+  const parserError = error as { status?: unknown; type?: unknown }
+
+  return parserError.status === 413 && parserError.type === 'entity.too.large'
 }
