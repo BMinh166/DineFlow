@@ -141,3 +141,10 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# DineFlow build output
+client/dist/
+server/dist/
+
+# context
+.codex-context/
