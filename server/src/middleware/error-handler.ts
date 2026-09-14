@@ -8,6 +8,13 @@ export const errorHandler: ErrorRequestHandler = (
   response,
   _next,
 ) => {
+  if (isMalformedJsonError(error)) {
+    response
+      .status(400)
+      .json(errorResponse('Invalid JSON body.', 'INVALID_JSON'))
+    return
+  }
+
   if (error instanceof AppError) {
     response.status(error.status).json(errorResponse(error.message, error.code))
     return
@@ -15,4 +22,14 @@ export const errorHandler: ErrorRequestHandler = (
 
   console.error(error)
   response.status(500).json(errorResponse('Internal server error.'))
+}
+
+function isMalformedJsonError(error: unknown): boolean {
+  if (!(error instanceof SyntaxError) || typeof error !== 'object' || error === null) {
+    return false
+  }
+
+  const parserError = error as { status?: unknown; type?: unknown }
+
+  return parserError.status === 400 && parserError.type === 'entity.parse.failed'
 }

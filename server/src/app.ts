@@ -8,6 +8,7 @@ import { healthRouter } from './routes/health.routes.js'
 export const app = express()
 
 app.use(cors({ origin: env.clientOrigin }))
+app.use(express.json())
 app.use('/api/health', healthRouter)
 app.use(notFoundHandler)
 app.use(errorHandler)
