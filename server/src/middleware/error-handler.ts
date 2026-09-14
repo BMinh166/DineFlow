@@ -1,24 +1,18 @@
 import type { ErrorRequestHandler } from 'express'
-
-type ErrorWithStatus = Error & { status?: unknown }
+import { AppError } from '../utils/app-error.js'
+import { errorResponse } from '../utils/api-response.js'
 
 export const errorHandler: ErrorRequestHandler = (
-  error: ErrorWithStatus,
+  error,
   _request,
   response,
   _next,
 ) => {
-  const status =
-    typeof error.status === 'number' && error.status >= 400 && error.status < 600
-      ? error.status
-      : 500
-
-  if (status >= 500) {
-    console.error(error)
+  if (error instanceof AppError) {
+    response.status(error.status).json(errorResponse(error.message, error.code))
+    return
   }
 
-  response.status(status).json({
-    success: false,
-    message: status === 500 ? 'Internal server error.' : 'Request failed.',
-  })
+  console.error(error)
+  response.status(500).json(errorResponse('Internal server error.'))
 }
