@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-app-bg: #F7F5EF;
+  --color-surface: #FFFFFF;
+  --color-brand: #0F6B4F;
+  --color-text-primary: #1F2933;
+  --color-border-default: #E4E7EC;
+}
+
+@layer base {
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background: var(--color-app-bg);
+    color: var(--color-text-primary);
+    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+}
+
+.app-bootstrap {
+  padding: 1rem;
+}
