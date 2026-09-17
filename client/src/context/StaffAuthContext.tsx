@@ -9,6 +9,7 @@ interface StaffAuthContextValue {
   status: AuthStatus
   user: StaffUser | null
   isAuthenticated: boolean
+  sessionExpired: boolean
   login: (identifier: string, password: string) => Promise<void>
   logout: () => void
   retryRestore: () => Promise<void>
@@ -19,14 +20,23 @@ export const StaffAuthContext = createContext<StaffAuthContextValue | undefined>
 export function StaffAuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('restoring')
   const [user, setUser] = useState<StaffUser | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const logout = useCallback(() => {
     clearStaffToken()
     setUser(null)
     setStatus('unauthenticated')
+    setSessionExpired(false)
   }, [])
 
-  useEffect(() => subscribeToUnauthorized(logout), [logout])
+  const handleUnauthorized = useCallback(() => {
+    clearStaffToken()
+    setUser(null)
+    setStatus('unauthenticated')
+    setSessionExpired(true)
+  }, [])
+
+  useEffect(() => subscribeToUnauthorized(handleUnauthorized), [handleUnauthorized])
 
   useEffect(() => {
     if (!getStaffToken()) {
@@ -65,6 +75,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     setStaffToken(result.token)
     setUser(result.user)
     setStatus('authenticated')
+    setSessionExpired(false)
   }, [])
 
   const retryRestore = useCallback(async () => {
@@ -79,6 +90,7 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
       const currentUser = await getCurrentStaff()
       setUser(currentUser)
       setStatus('authenticated')
+      setSessionExpired(false)
     } catch (error) {
       if (isUnauthorizedError(error)) {
         clearStaffToken()
@@ -96,10 +108,11 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     status,
     user,
     isAuthenticated: status === 'authenticated',
+    sessionExpired,
     login,
     logout,
     retryRestore,
-  }), [login, logout, retryRestore, status, user])
+  }), [login, logout, retryRestore, sessionExpired, status, user])
 
   return <StaffAuthContext.Provider value={value}>{children}</StaffAuthContext.Provider>
 }

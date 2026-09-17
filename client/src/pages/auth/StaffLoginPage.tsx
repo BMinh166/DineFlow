@@ -6,7 +6,7 @@ import { getStaffRoleHomePath } from '../../utils/staff-role-route'
 import { getLoginErrorMessage } from './login-error'
 
 export function StaffLoginPage() {
-  const { status, user, login, retryRestore } = useStaffAuth()
+  const { status, user, login, retryRestore, sessionExpired } = useStaffAuth()
   const navigate = useNavigate()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -71,6 +71,8 @@ export function StaffLoginPage() {
         <p className="text-xl font-bold text-brand">DineFlow</p>
         <h1 className="mt-5 text-2xl font-bold" id="staff-login-title">Đăng nhập nhân viên</h1>
         <p className="mt-2 text-content-secondary">Đăng nhập để tiếp tục sử dụng DineFlow.</p>
+
+        {sessionExpired && !errorMessage && !isSubmitting && <p aria-live="polite" className="mt-4 rounded-lg bg-warning/10 px-3 py-2 text-sm text-content">Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.</p>}
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>
