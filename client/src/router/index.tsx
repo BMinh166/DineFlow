@@ -5,6 +5,7 @@ import { ManagerLayout } from '../layouts/ManagerLayout'
 import { WaiterLayout } from '../layouts/WaiterLayout'
 import { FrontendFoundationPage } from '../pages/FrontendFoundationPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
+import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 
 const router = createBrowserRouter([
   {
@@ -20,12 +21,20 @@ const router = createBrowserRouter([
     element: <WaiterLayout />,
   },
   {
+    path: '/waiter/tables',
+    element: <WaiterLayout />,
+  },
+  {
     path: '/kitchen',
     element: <KitchenLayout />,
   },
   {
     path: '/manager',
     element: <ManagerLayout />,
+  },
+  {
+    path: '/staff/login',
+    element: <StaffLoginPage />,
   },
   {
     path: '*',

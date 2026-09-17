@@ -11,6 +11,7 @@ interface StaffAuthContextValue {
   isAuthenticated: boolean
   login: (identifier: string, password: string) => Promise<void>
   logout: () => void
+  retryRestore: () => Promise<void>
 }
 
 export const StaffAuthContext = createContext<StaffAuthContextValue | undefined>(undefined)
@@ -66,13 +67,39 @@ export function StaffAuthProvider({ children }: { children: ReactNode }) {
     setStatus('authenticated')
   }, [])
 
+  const retryRestore = useCallback(async () => {
+    if (!getStaffToken()) {
+      setStatus('unauthenticated')
+      return
+    }
+
+    setStatus('restoring')
+
+    try {
+      const currentUser = await getCurrentStaff()
+      setUser(currentUser)
+      setStatus('authenticated')
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        clearStaffToken()
+        setUser(null)
+        setStatus('unauthenticated')
+        return
+      }
+
+      setUser(null)
+      setStatus('restore-failed')
+    }
+  }, [])
+
   const value = useMemo<StaffAuthContextValue>(() => ({
     status,
     user,
     isAuthenticated: status === 'authenticated',
     login,
     logout,
-  }), [login, logout, status, user])
+    retryRestore,
+  }), [login, logout, retryRestore, status, user])
 
   return <StaffAuthContext.Provider value={value}>{children}</StaffAuthContext.Provider>
 }
