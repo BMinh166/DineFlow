@@ -27,3 +27,16 @@ npm run dev
 ```
 
 The backend starts only after connecting to MongoDB. Its foundation health endpoint is available at `GET /api/health`.
+
+## Initial Manager seed
+
+Set `SEED_MANAGER_NAME`, `SEED_MANAGER_USERNAME`, `SEED_MANAGER_EMAIL`, and
+`SEED_MANAGER_PASSWORD` in `server/.env`, then run from `server/`:
+
+```powershell
+npm run seed:manager
+```
+
+This explicitly creates the configured initial Manager account. Rerunning it
+with the same active Manager identity makes no changes; it never resets or
+updates an existing account.
