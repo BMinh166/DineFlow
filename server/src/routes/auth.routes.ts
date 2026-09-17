@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
-import { loginStaffController } from '../controllers/auth.controller.js'
+import { getCurrentStaffController, loginStaffController } from '../controllers/auth.controller.js'
+import { authenticateStaff } from '../middleware/authenticate-staff.js'
 import { validateRequest } from '../middleware/validate-request.js'
 import { staffLoginRequestSchema } from '../validators/auth.validator.js'
 
@@ -11,3 +12,5 @@ authRouter.post(
   validateRequest({ body: staffLoginRequestSchema }),
   loginStaffController,
 )
+
+authRouter.get('/me', authenticateStaff, getCurrentStaffController)
