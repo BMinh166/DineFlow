@@ -1,0 +1,118 @@
+import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+
+import { getCurrentStaff, loginStaff } from '../services/auth-api'
+import { isUnauthorizedError, subscribeToUnauthorized } from '../services/api'
+import { clearStaffToken, getStaffToken, setStaffToken } from '../services/staff-token-storage'
+import type { AuthStatus, StaffUser } from '../types/staff-auth'
+
+interface StaffAuthContextValue {
+  status: AuthStatus
+  user: StaffUser | null
+  isAuthenticated: boolean
+  sessionExpired: boolean
+  login: (identifier: string, password: string) => Promise<void>
+  logout: () => void
+  retryRestore: () => Promise<void>
+}
+
+export const StaffAuthContext = createContext<StaffAuthContextValue | undefined>(undefined)
+
+export function StaffAuthProvider({ children }: { children: ReactNode }) {
+  const [status, setStatus] = useState<AuthStatus>('restoring')
+  const [user, setUser] = useState<StaffUser | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
+
+  const logout = useCallback(() => {
+    clearStaffToken()
+    setUser(null)
+    setStatus('unauthenticated')
+    setSessionExpired(false)
+  }, [])
+
+  const handleUnauthorized = useCallback(() => {
+    clearStaffToken()
+    setUser(null)
+    setStatus('unauthenticated')
+    setSessionExpired(true)
+  }, [])
+
+  useEffect(() => subscribeToUnauthorized(handleUnauthorized), [handleUnauthorized])
+
+  useEffect(() => {
+    if (!getStaffToken()) {
+      setStatus('unauthenticated')
+      return
+    }
+
+    let active = true
+
+    void getCurrentStaff()
+      .then(currentUser => {
+        if (!active) return
+        setUser(currentUser)
+        setStatus('authenticated')
+      })
+      .catch(error => {
+        if (!active) return
+        if (isUnauthorizedError(error)) {
+          clearStaffToken()
+          setUser(null)
+          setStatus('unauthenticated')
+          return
+        }
+
+        setUser(null)
+        setStatus('restore-failed')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const login = useCallback(async (identifier: string, password: string) => {
+    const result = await loginStaff(identifier, password)
+    setStaffToken(result.token)
+    setUser(result.user)
+    setStatus('authenticated')
+    setSessionExpired(false)
+  }, [])
+
+  const retryRestore = useCallback(async () => {
+    if (!getStaffToken()) {
+      setStatus('unauthenticated')
+      return
+    }
+
+    setStatus('restoring')
+
+    try {
+      const currentUser = await getCurrentStaff()
+      setUser(currentUser)
+      setStatus('authenticated')
+      setSessionExpired(false)
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        clearStaffToken()
+        setUser(null)
+        setStatus('unauthenticated')
+        return
+      }
+
+      setUser(null)
+      setStatus('restore-failed')
+    }
+  }, [])
+
+  const value = useMemo<StaffAuthContextValue>(() => ({
+    status,
+    user,
+    isAuthenticated: status === 'authenticated',
+    sessionExpired,
+    login,
+    logout,
+    retryRestore,
+  }), [login, logout, retryRestore, sessionExpired, status, user])
+
+  return <StaffAuthContext.Provider value={value}>{children}</StaffAuthContext.Provider>
+}
