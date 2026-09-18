@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Menu } from 'lucide-react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { AppLogo, Button, Drawer, IconButton } from '../components/ui'
 import { useStaffAuth } from '../hooks/useStaffAuth'
 
@@ -8,11 +8,14 @@ interface ManagerLayoutProps {
   children?: ReactNode
 }
 
-function ManagerNavigation({ onNavigate }: { onNavigate?: () => void }) {
+function ManagerNavigation() {
   return (
     <nav aria-label="Điều hướng quản lý" className="flex flex-col gap-1">
-      <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} onClick={onNavigate} to="/manager">
+      <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} to="/manager">
         Khu vực quản lý
+      </NavLink>
+      <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} to="/manager/categories">
+        Danh mục
       </NavLink>
     </nav>
   )
@@ -21,7 +24,12 @@ function ManagerNavigation({ onNavigate }: { onNavigate?: () => void }) {
 export function ManagerLayout({ children }: ManagerLayoutProps) {
   const [isNavigationOpen, setIsNavigationOpen] = useState(false)
   const { logout, user } = useStaffAuth()
+  const location = useLocation()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    setIsNavigationOpen(false)
+  }, [location.pathname])
 
   function handleLogout() {
     logout()
@@ -53,7 +61,7 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
         title="Khu vực quản lý"
       >
         {user && <p className="mb-5 text-compact text-content-secondary">{user.name}</p>}
-        <ManagerNavigation onNavigate={() => setIsNavigationOpen(false)} />
+        <ManagerNavigation />
       </Drawer>
     </div>
   )

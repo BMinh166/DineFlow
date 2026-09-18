@@ -11,6 +11,7 @@ type ConfirmDialogProps = {
   onCancel?: () => void
   onClose: () => void
   onConfirm: () => void | Promise<void>
+  onError?: (error: unknown) => void
   title: ReactNode
 }
 
@@ -23,6 +24,7 @@ export function ConfirmDialog({
   onCancel,
   onClose,
   onConfirm,
+  onError,
   title,
 }: ConfirmDialogProps) {
   const [isConfirming, setIsConfirming] = useState(false)
@@ -36,6 +38,8 @@ export function ConfirmDialog({
     try {
       await onConfirm()
       onClose()
+    } catch (error) {
+      onError?.(error)
     } finally {
       setIsConfirming(false)
     }
