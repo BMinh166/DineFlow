@@ -1,18 +1,93 @@
 @import 'tailwindcss';
 
-@theme {
+/* Keep the shared contract available even before a component consumes each token. */
+@theme static {
+  /* Application and surface colors. Existing aliases are retained for Phase 1-4 UI. */
   --color-app: #F7F5EF;
+  --color-bg-subtle: #F3F5F1;
   --color-surface: #FFFFFF;
+  --color-surface-muted: #F7F9F7;
   --color-muted: #F3F5F1;
+
+  /* Text and borders. */
   --color-content: #1F2933;
   --color-content-secondary: #667085;
+  --color-content-muted: #98A2B3;
+  --color-content-disabled: #B8C0CC;
+  --color-on-primary: #FFFFFF;
   --color-border: #E4E7EC;
+  --color-border-strong: #D0D5DD;
+
+  /* Brand colors. */
   --color-brand: #0F6B4F;
   --color-brand-hover: #0B5A42;
+  --color-brand-active: #084A37;
+  --color-brand-soft: #E7F4EE;
+  --color-brand-border: #B9DDCF;
+
+  /* Status colors, including soft backgrounds for semantic status presentation. */
   --color-success: #16865C;
+  --color-success-soft: #E8F7F0;
   --color-warning: #E68A24;
+  --color-warning-soft: #FFF2DF;
   --color-danger: #D64545;
+  --color-danger-soft: #FDECEC;
   --color-info: #2F80C9;
+  --color-info-soft: #EAF4FC;
+  --color-neutral: #667085;
+  --color-neutral-soft: #F2F4F7;
+
+  /* Kitchen workspace colors. */
+  --color-kitchen-bg: #101D22;
+  --color-kitchen-surface: #17262C;
+  --color-kitchen-surface-hover: #1D3037;
+  --color-kitchen-border: #2B3B41;
+  --color-kitchen-text: #F8FAFC;
+  --color-kitchen-text-secondary: #B7C3C8;
+  --color-kitchen-action: #F59A3D;
+  --color-kitchen-action-hover: #E98A2C;
+
+  /* Shared typography, geometry, and elevation tokens. */
+  --font-sans: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+  --text-display--font-weight: 700;
+  --text-page-title: 1.75rem;
+  --text-page-title--line-height: 2.25rem;
+  --text-page-title--font-weight: 700;
+  --text-section-title: 1.375rem;
+  --text-section-title--line-height: 1.875rem;
+  --text-section-title--font-weight: 700;
+  --text-subsection: 1.125rem;
+  --text-subsection--line-height: 1.625rem;
+  --text-subsection--font-weight: 600;
+  --text-card-title: 1rem;
+  --text-card-title--line-height: 1.5rem;
+  --text-card-title--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-body--font-weight: 400;
+  --text-compact: 0.875rem;
+  --text-compact--line-height: 1.25rem;
+  --text-compact--font-weight: 400;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 600;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.125rem;
+  --text-caption--font-weight: 400;
+  --text-price-lg: 1.25rem;
+  --text-price-lg--line-height: 1.75rem;
+  --text-price-lg--font-weight: 700;
+  --text-price: 1rem;
+  --text-price--line-height: 1.5rem;
+  --text-price--font-weight: 700;
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+  --radius-modal: 1rem;
+  --radius-pill: 9999px;
+  --shadow-card: 0 2px 8px rgb(16 24 40 / 0.06);
+  --shadow-modal: 0 12px 32px rgb(16 24 40 / 0.16);
 }
 
 @layer base {
