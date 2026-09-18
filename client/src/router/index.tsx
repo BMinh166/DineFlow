@@ -9,6 +9,7 @@ import { FrontendFoundationPage } from '../pages/FrontendFoundationPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
+import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 
 const router = createBrowserRouter([
   {
@@ -38,6 +39,10 @@ const router = createBrowserRouter([
   {
     path: '/manager/categories',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerCategoryListPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/dishes',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerDishListPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/staff/login',
