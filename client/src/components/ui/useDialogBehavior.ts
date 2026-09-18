@@ -14,6 +14,11 @@ function getFocusableElements(container: HTMLElement) {
 
 export function useDialogBehavior({ dismissible, isOpen, onClose }: DialogBehaviorOptions) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!isOpen) return
@@ -26,7 +31,7 @@ export function useDialogBehavior({ dismissible, isOpen, onClose }: DialogBehavi
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && dismissible) {
         event.preventDefault()
-        onClose()
+        onCloseRef.current()
         return
       }
 
@@ -57,7 +62,7 @@ export function useDialogBehavior({ dismissible, isOpen, onClose }: DialogBehavi
       document.removeEventListener('keydown', handleKeyDown)
       previousActiveElement?.focus()
     }
-  }, [dismissible, isOpen, onClose])
+  }, [dismissible, isOpen])
 
   return dialogRef
 }
