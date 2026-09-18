@@ -14,6 +14,9 @@ function ManagerNavigation({ onNavigate }: { onNavigate?: () => void }) {
       <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} onClick={onNavigate} to="/manager">
         Khu vực quản lý
       </NavLink>
+      <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} onClick={onNavigate} to="/manager/categories">
+        Danh mục
+      </NavLink>
     </nav>
   )
 }

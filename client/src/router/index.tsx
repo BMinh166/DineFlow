@@ -8,6 +8,7 @@ import { RoleRoute } from '../components/auth/RoleRoute'
 import { FrontendFoundationPage } from '../pages/FrontendFoundationPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
+import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
 
 const router = createBrowserRouter([
   {
@@ -33,6 +34,10 @@ const router = createBrowserRouter([
   {
     path: '/manager',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout /></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/categories',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerCategoryListPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/staff/login',

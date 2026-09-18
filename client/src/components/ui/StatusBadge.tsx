@@ -5,6 +5,7 @@ type StatusBadgeProps =
   | { entity: 'order'; status: 'OPEN' | 'PAYMENT_REQUESTED' | 'CLOSED' }
   | { entity: 'order-item'; status: 'PENDING' | 'PREPARING' | 'COMPLETED' }
   | { entity: 'user'; status: 'ACTIVE' | 'INACTIVE' }
+  | { entity: 'category'; status: 'ACTIVE' | 'INACTIVE' }
   | { entity: 'dish'; status: 'AVAILABLE' | 'UNAVAILABLE' }
 
 type StatusPresentation = {
@@ -29,6 +30,10 @@ const statusPresentations: Record<StatusBadgeProps['entity'], Record<string, Sta
     COMPLETED: { label: 'Hoàn thành', variant: 'success' },
   },
   user: {
+    ACTIVE: { label: 'Hoạt động', variant: 'success' },
+    INACTIVE: { label: 'Không hoạt động', variant: 'neutral' },
+  },
+  category: {
     ACTIVE: { label: 'Hoạt động', variant: 'success' },
     INACTIVE: { label: 'Không hoạt động', variant: 'neutral' },
   },
