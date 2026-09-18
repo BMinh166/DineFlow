@@ -1,14 +1,26 @@
-import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
-
+import { useState, type ReactNode } from 'react'
+import { Menu } from 'lucide-react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { AppLogo, Button, Drawer, IconButton } from '../components/ui'
 import { useStaffAuth } from '../hooks/useStaffAuth'
 
 interface ManagerLayoutProps {
   children?: ReactNode
 }
 
+function ManagerNavigation({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <nav aria-label="Điều hướng quản lý" className="flex flex-col gap-1">
+      <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} onClick={onNavigate} to="/manager">
+        Khu vực quản lý
+      </NavLink>
+    </nav>
+  )
+}
+
 export function ManagerLayout({ children }: ManagerLayoutProps) {
-  const { logout } = useStaffAuth()
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false)
+  const { logout, user } = useStaffAuth()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -17,14 +29,32 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
   }
 
   return (
-    <main className="min-h-screen bg-muted px-4 py-8 text-content">
-      <section className="mx-auto max-w-xl rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <p className="text-sm font-semibold text-brand">Manager</p>
-        <h1 className="mt-2 text-2xl font-bold">Manager Layout</h1>
-        <p className="mt-2 text-content-secondary">Placeholder for the future manager workspace.</p>
-        <button className="mt-6 rounded-lg border border-border px-4 py-2 font-semibold text-content hover:bg-muted" onClick={handleLogout} type="button">Đăng xuất</button>
-        {children}
-      </section>
-    </main>
+    <div className="min-h-screen bg-app text-content md:flex">
+      <aside className="hidden w-64 shrink-0 border-r border-border bg-surface p-4 md:flex md:flex-col">
+        <AppLogo />
+        <p className="mt-1 text-caption text-content-secondary">Khu vực quản lý</p>
+        <div className="mt-8"><ManagerNavigation /></div>
+        <div className="mt-auto border-t border-border pt-4">
+          {user && <p className="mb-3 truncate text-compact text-content-secondary">{user.name}</p>}
+          <Button className="w-full" onClick={handleLogout} variant="secondary">Đăng xuất</Button>
+        </div>
+      </aside>
+      <div className="min-w-0 flex-1">
+        <header className="flex min-h-16 items-center gap-3 border-b border-border bg-surface px-4 md:hidden">
+          <IconButton aria-label="Mở điều hướng quản lý" icon={Menu} onClick={() => setIsNavigationOpen(true)} />
+          <AppLogo />
+        </header>
+        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children ?? <Outlet />}</main>
+      </div>
+      <Drawer
+        footer={<Button className="w-full" onClick={handleLogout} variant="secondary">Đăng xuất</Button>}
+        isOpen={isNavigationOpen}
+        onClose={() => setIsNavigationOpen(false)}
+        title="Khu vực quản lý"
+      >
+        {user && <p className="mb-5 text-compact text-content-secondary">{user.name}</p>}
+        <ManagerNavigation onNavigate={() => setIsNavigationOpen(false)} />
+      </Drawer>
+    </div>
   )
 }

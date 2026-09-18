@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
-
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { AppLogo, Button } from '../components/ui'
 import { useStaffAuth } from '../hooks/useStaffAuth'
 
 interface WaiterLayoutProps {
@@ -8,7 +8,7 @@ interface WaiterLayoutProps {
 }
 
 export function WaiterLayout({ children }: WaiterLayoutProps) {
-  const { logout } = useStaffAuth()
+  const { logout, user } = useStaffAuth()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -17,14 +17,22 @@ export function WaiterLayout({ children }: WaiterLayoutProps) {
   }
 
   return (
-    <main className="min-h-screen bg-muted px-4 py-8 text-content">
-      <section className="mx-auto max-w-xl rounded-xl border border-border bg-surface p-6 shadow-sm">
-        <p className="text-sm font-semibold text-brand">Waiter</p>
-        <h1 className="mt-2 text-2xl font-bold">Waiter Layout</h1>
-        <p className="mt-2 text-content-secondary">Placeholder for the future waiter workspace.</p>
-        <button className="mt-6 rounded-lg border border-border px-4 py-2 font-semibold text-content hover:bg-muted" onClick={handleLogout} type="button">Đăng xuất</button>
-        {children}
-      </section>
-    </main>
+    <div className="min-h-screen bg-app text-content">
+      <header className="border-b border-border bg-surface">
+        <div className="mx-auto flex min-h-16 w-full max-w-5xl items-center justify-between gap-4 px-4">
+          <div>
+            <AppLogo />
+            <p className="text-caption text-content-secondary">Khu vực phục vụ{user ? ` · ${user.name}` : ''}</p>
+          </div>
+          <Button onClick={handleLogout} size="sm" variant="secondary">Đăng xuất</Button>
+        </div>
+        <nav aria-label="Điều hướng khu vực phục vụ" className="mx-auto flex w-full max-w-5xl px-4">
+          <NavLink className={({ isActive }) => `min-h-11 border-b-2 px-3 py-2 text-label ${isActive ? 'border-brand text-brand' : 'border-transparent text-content-secondary hover:text-content'}`} to="/waiter/tables">
+            Bàn ăn
+          </NavLink>
+        </nav>
+      </header>
+      <main className="mx-auto w-full max-w-5xl px-4 py-6">{children ?? <Outlet />}</main>
+    </div>
   )
 }

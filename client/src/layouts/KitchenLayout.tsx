@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
-
+import { Outlet, useNavigate } from 'react-router-dom'
+import { AppLogo, Button } from '../components/ui'
 import { useStaffAuth } from '../hooks/useStaffAuth'
 
 interface KitchenLayoutProps {
@@ -8,7 +8,7 @@ interface KitchenLayoutProps {
 }
 
 export function KitchenLayout({ children }: KitchenLayoutProps) {
-  const { logout } = useStaffAuth()
+  const { logout, user } = useStaffAuth()
   const navigate = useNavigate()
 
   function handleLogout() {
@@ -17,14 +17,17 @@ export function KitchenLayout({ children }: KitchenLayoutProps) {
   }
 
   return (
-    <main className="min-h-screen bg-content px-4 py-8 text-surface">
-      <section className="mx-auto max-w-xl rounded-xl border border-surface/20 bg-muted p-6 text-content shadow-sm">
-        <p className="text-sm font-semibold text-brand">Kitchen</p>
-        <h1 className="mt-2 text-2xl font-bold">Kitchen Layout</h1>
-        <p className="mt-2 text-content-secondary">Placeholder for the future kitchen workspace.</p>
-        <button className="mt-6 rounded-lg border border-border px-4 py-2 font-semibold text-content hover:bg-muted" onClick={handleLogout} type="button">Đăng xuất</button>
-        {children}
-      </section>
-    </main>
+    <div className="min-h-screen bg-kitchen-bg text-kitchen-text">
+      <header className="border-b border-kitchen-border bg-kitchen-surface">
+        <div className="mx-auto flex min-h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div>
+            <AppLogo className="text-kitchen-text" />
+            <p className="text-caption text-kitchen-text-secondary">Khu vực bếp{user ? ` · ${user.name}` : ''}</p>
+          </div>
+          <Button className="text-kitchen-text hover:bg-kitchen-surface-hover" onClick={handleLogout} size="sm" variant="ghost">Đăng xuất</Button>
+        </div>
+      </header>
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children ?? <Outlet />}</main>
+    </div>
   )
 }
