@@ -10,6 +10,8 @@ import { NotFoundPage } from '../pages/NotFoundPage'
 import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
+import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
+import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
 import { PublicMenuPage } from '../pages/customer/PublicMenuPage'
 
 const router = createBrowserRouter([
@@ -58,6 +60,14 @@ const router = createBrowserRouter([
   {
     path: '/manager/dishes',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerDishListPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/tables',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerTableListPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/qr',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerQrCodePage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/staff/login',
