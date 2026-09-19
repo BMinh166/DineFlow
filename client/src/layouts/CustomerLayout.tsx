@@ -12,7 +12,7 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
       <header className="border-b border-border bg-surface px-4 py-4">
         <div className="mx-auto w-full max-w-2xl"><AppLogo /></div>
       </header>
-      <main className="mx-auto w-full max-w-2xl px-4 py-6">{children ?? <Outlet />}</main>
+      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children ?? <Outlet />}</main>
     </div>
   )
 }

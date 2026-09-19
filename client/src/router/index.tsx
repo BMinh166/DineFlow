@@ -10,6 +10,7 @@ import { NotFoundPage } from '../pages/NotFoundPage'
 import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
+import { PublicMenuPage } from '../pages/customer/PublicMenuPage'
 
 const router = createBrowserRouter([
   {
@@ -19,6 +20,20 @@ const router = createBrowserRouter([
   {
     path: '/customer',
     element: <CustomerLayout />,
+  },
+  {
+    path: '/table/:tableId',
+    element: <CustomerLayout />,
+    children: [
+      {
+        index: true,
+        element: <PublicMenuPage />,
+      },
+      {
+        path: 'menu',
+        element: <PublicMenuPage />,
+      },
+    ],
   },
   {
     path: '/waiter',
