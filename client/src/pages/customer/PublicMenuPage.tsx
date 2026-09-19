@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { SearchX, Utensils } from 'lucide-react'
 import { useParams } from 'react-router-dom'
-import { Badge, Card, EmptyState, ErrorState, SearchInput, Skeleton } from '../../components/ui'
+import { Badge, Button, Card, EmptyState, ErrorState, SearchInput, Skeleton } from '../../components/ui'
 import { getPublicMenuCategories, getPublicMenuDishes, getPublicTable } from '../../services/public-menu-api'
 import type { PublicCategory, PublicDish, PublicTable } from '../../types/public-menu'
+import { formatVnd } from '../../utils/format-vnd'
+import { DishDetailModal } from './DishDetailModal'
 
 type TableErrorKind = 'INACTIVE' | 'INVALID_OR_MISSING' | null
 
@@ -16,14 +18,6 @@ function getTableErrorKind(error: unknown): TableErrorKind {
   if (code === 'INVALID_OBJECT_ID' || code === 'TABLE_NOT_FOUND') return 'INVALID_OR_MISSING'
 
   return null
-}
-
-function formatVnd(price: number): string {
-  return new Intl.NumberFormat('vi-VN', {
-    currency: 'VND',
-    maximumFractionDigits: 0,
-    style: 'currency',
-  }).format(price)
 }
 
 function MenuLoadingState() {
@@ -39,7 +33,7 @@ function MenuLoadingState() {
   )
 }
 
-function DishCard({ dish }: { dish: PublicDish }) {
+function DishCard({ dish, onViewDetails }: { dish: PublicDish, onViewDetails: (dish: PublicDish) => void }) {
   return (
     <Card className="flex h-full flex-col overflow-hidden" elevated>
       <div className="relative aspect-4/3 bg-surface-muted">
@@ -49,12 +43,13 @@ function DishCard({ dish }: { dish: PublicDish }) {
       </div>
       <div className="flex flex-1 flex-col p-4">
         <p className="text-caption text-content-secondary">{dish.category.name}</p>
-        <h2 className="mt-1 text-card-title text-content">{dish.name}</h2>
+        <h2 className="mt-1 break-words text-card-title text-content">{dish.name}</h2>
         {dish.description && <p className="mt-2 line-clamp-2 text-compact text-content-secondary">{dish.description}</p>}
         <div className="mt-auto flex items-end justify-between gap-3 pt-4">
           <p className="text-price text-content">{formatVnd(dish.price)}</p>
           <span className="text-caption text-content-secondary">{dish.isAvailable ? 'Có sẵn' : 'Tạm hết'}</span>
         </div>
+        <Button className="mt-4 w-full" onClick={() => onViewDetails(dish)} variant="secondary">Xem chi tiết</Button>
       </div>
     </Card>
   )
@@ -69,6 +64,7 @@ export function PublicMenuPage() {
   const [reloadKey, setReloadKey] = useState(0)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedDish, setSelectedDish] = useState<PublicDish | null>(null)
   const [table, setTable] = useState<PublicTable | null>(null)
   const [tableError, setTableError] = useState<TableErrorKind>(null)
 
@@ -81,6 +77,7 @@ export function PublicMenuPage() {
       setIsLoading(true)
       setMenuError(false)
       setSelectedCategoryId(null)
+      setSelectedDish(null)
       setTable(null)
       setTableError(null)
 
@@ -144,7 +141,8 @@ export function PublicMenuPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <section className="rounded-card border border-brand-border bg-brand-soft p-4 sm:p-5">
         <p className="text-label text-brand">Thực đơn tại</p>
         <h1 className="mt-1 text-page-title text-content">Bàn {table.number}</h1>
@@ -168,10 +166,12 @@ export function PublicMenuPage() {
         <section aria-label="Danh sách món ăn">
           <h2 className="sr-only">Món ăn</h2>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} /></li>)}
+            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} onViewDetails={setSelectedDish} /></li>)}
           </ul>
         </section>
       )}
-    </div>
+      </div>
+      <DishDetailModal dish={selectedDish} isOpen={selectedDish !== null} onClose={() => setSelectedDish(null)} />
+    </>
   )
 }
