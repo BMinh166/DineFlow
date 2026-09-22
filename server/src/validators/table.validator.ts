@@ -20,3 +20,5 @@ export type UpdateTableRequest = z.infer<typeof updateTableRequestSchema>
 export const tableIdParamsSchema = z.object({
   tableId: z.string().transform(assertValidObjectId),
 }).strict()
+
+export const openTableRequestSchema = z.object({}).strict().optional()

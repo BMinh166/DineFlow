@@ -11,6 +11,7 @@ import { managerDishRouter } from './routes/manager-dish.routes.js'
 import { managerTableRouter } from './routes/manager-table.routes.js'
 import { publicMenuRouter } from './routes/public-menu.routes.js'
 import { publicTableRouter } from './routes/public-table.routes.js'
+import { waiterTableRouter } from './routes/waiter-table.routes.js'
 
 export const app = express()
 
@@ -26,5 +27,6 @@ app.use('/api/manager/dishes', managerDishRouter)
 app.use('/api/manager/tables', managerTableRouter)
 app.use('/api/public/menu', publicMenuRouter)
 app.use('/api/public/tables', publicTableRouter)
+app.use('/api/waiter/tables', waiterTableRouter)
 app.use(notFoundHandler)
 app.use(errorHandler)
