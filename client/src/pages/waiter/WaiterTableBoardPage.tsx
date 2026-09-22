@@ -1,19 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
-import { RefreshCw, TableProperties } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import axios from 'axios'
+import { Clipboard, RefreshCw, TableProperties } from 'lucide-react'
 
-import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, PageLoading, StatusBadge } from '../../components/ui'
-import { getWaiterTables } from '../../services/waiter-table-api'
-import type { WaiterTable } from '../../types/table'
+import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Modal, PageHeader, PageLoading, StatusBadge, useToast } from '../../components/ui'
+import { getWaiterActiveTableSession, getWaiterTables, openWaiterTable } from '../../services/waiter-table-api'
+import type { OpenWaiterTableResult, WaiterActiveTableSession, WaiterTable } from '../../types/table'
 import { getApiErrorMessage } from '../../utils/api-error'
 
 type TableFilter = 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'PAYMENT_REQUESTED'
-
-type FilterOption = {
-  id: TableFilter
-  label: string
+type SessionTable = Pick<WaiterTable, 'id' | 'number'> | OpenWaiterTableResult['table']
+type SessionDetail = {
+  table: Pick<WaiterActiveTableSession['table'], 'id' | 'number' | 'status'>
+  session: WaiterActiveTableSession['session']
 }
 
-const filterOptions: FilterOption[] = [
+const filterOptions: { id: TableFilter; label: string }[] = [
   { id: 'ALL', label: 'Tất cả' },
   { id: 'AVAILABLE', label: 'Trống' },
   { id: 'OCCUPIED', label: 'Đang phục vụ' },
@@ -21,16 +22,47 @@ const filterOptions: FilterOption[] = [
 ]
 
 function matchesFilter(table: WaiterTable, filter: TableFilter): boolean {
-  switch (filter) {
-    case 'AVAILABLE':
-      return table.active && table.status === 'AVAILABLE'
-    case 'OCCUPIED':
-      return table.active && table.status === 'OCCUPIED'
-    case 'PAYMENT_REQUESTED':
-      return table.orderStatus === 'PAYMENT_REQUESTED'
-    case 'ALL':
-      return true
+  if (filter === 'AVAILABLE') return table.active && table.status === 'AVAILABLE'
+  if (filter === 'OCCUPIED') return table.active && table.status === 'OCCUPIED'
+  if (filter === 'PAYMENT_REQUESTED') return table.orderStatus === 'PAYMENT_REQUESTED'
+  return true
+}
+
+function getApiErrorCode(error: unknown): string | undefined {
+  if (!axios.isAxiosError(error)) return undefined
+  return typeof error.response?.data?.code === 'string' ? error.response.data.code : undefined
+}
+
+function getOpenTableErrorMessage(error: unknown): string {
+  switch (getApiErrorCode(error)) {
+    case 'INVALID_OBJECT_ID': return 'Mã bàn không hợp lệ. Vui lòng tải lại danh sách.'
+    case 'TABLE_NOT_FOUND': return 'Không tìm thấy bàn. Vui lòng tải lại danh sách.'
+    case 'TABLE_INACTIVE': return 'Bàn này không hoạt động và không thể mở.'
+    case 'TABLE_ALREADY_OCCUPIED': return 'Bàn này đã được mở bởi một nhân viên khác.'
+    case 'TABLE_HAS_ACTIVE_SESSION': return 'Bàn này đang có phiên phục vụ hoạt động.'
+    case 'TABLE_OPEN_CONFLICT': return 'Bàn không còn sẵn sàng để mở. Danh sách đã được tải lại.'
+    case 'JOIN_CODE_GENERATION_EXHAUSTED': return 'Chưa thể tạo mã vào bàn. Vui lòng thử lại sau.'
+    default: return getApiErrorMessage(error, 'Không thể mở bàn. Vui lòng thử lại.')
   }
+}
+
+function getSessionErrorMessage(error: unknown): string {
+  switch (getApiErrorCode(error)) {
+    case 'INVALID_OBJECT_ID': return 'Mã bàn không hợp lệ. Vui lòng tải lại danh sách.'
+    case 'TABLE_NOT_FOUND': return 'Không tìm thấy bàn. Vui lòng tải lại danh sách.'
+    case 'ACTIVE_TABLE_SESSION_NOT_FOUND': return 'Bàn này hiện không có phiên phục vụ hoạt động. Vui lòng tải lại danh sách.'
+    default: return getApiErrorMessage(error, 'Không thể tải phiên phục vụ. Vui lòng thử lại.')
+  }
+}
+
+function isOpenEligible(table: WaiterTable): boolean {
+  return table.active && table.status === 'AVAILABLE' && !table.hasActiveSession
+}
+
+function getInconsistentStateMessage(table: WaiterTable): string | null {
+  if (table.status === 'AVAILABLE' && table.hasActiveSession) return 'Bàn đang có phiên hoạt động nên chưa thể mở thêm phiên mới.'
+  if (table.status === 'OCCUPIED' && !table.hasActiveSession) return 'Bàn đang phục vụ nhưng chưa có phiên hoạt động. Vui lòng tải lại danh sách.'
+  return null
 }
 
 function getTableDescription(table: WaiterTable): string {
@@ -47,130 +79,163 @@ function getOrderLabel(orderStatus: WaiterTable['orderStatus']): string {
   return 'Đã đóng'
 }
 
-function TableCard({ table }: { table: WaiterTable }) {
+function TableCard({ onOpen, onViewSession, openingTableId, table }: {
+  onOpen: (table: WaiterTable) => void
+  onViewSession: (table: WaiterTable) => void
+  openingTableId: string | null
+  table: WaiterTable
+}) {
+  const inconsistentStateMessage = getInconsistentStateMessage(table)
   const isPaymentRequested = table.orderStatus === 'PAYMENT_REQUESTED'
 
   return (
     <Card className={`h-full p-5 ${isPaymentRequested ? 'border-danger bg-danger-soft/30' : ''}`}>
-      <div className="flex flex-col gap-4">
+      <div className="flex h-full flex-col gap-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <TableProperties aria-hidden="true" className="size-5 shrink-0 text-brand" />
-              <h2 className="text-subsection text-content">Bàn {table.number}</h2>
-            </div>
+            <div className="flex items-center gap-2"><TableProperties aria-hidden="true" className="size-5 shrink-0 text-brand" /><h2 className="text-subsection text-content">Bàn {table.number}</h2></div>
             <p className="mt-2 text-compact text-content-secondary">{getTableDescription(table)}</p>
           </div>
-          <div className="flex shrink-0 flex-wrap justify-end gap-2" aria-label={`Trạng thái bàn ${table.number}`}>
+          <div aria-label={`Trạng thái bàn ${table.number}`} className="flex shrink-0 flex-wrap justify-end gap-2">
             {isPaymentRequested && <Badge variant="danger">Yêu cầu thanh toán</Badge>}
             <StatusBadge entity="table" status={table.status} />
           </div>
         </div>
 
         <dl className="grid gap-3 border-y border-border py-4 text-compact sm:grid-cols-2">
-          <div>
-            <dt className="text-content-muted">Vòng đời bàn</dt>
-            <dd className="mt-1"><StatusBadge entity="category" status={table.active ? 'ACTIVE' : 'INACTIVE'} /></dd>
-          </div>
-          <div>
-            <dt className="text-content-muted">Phiên hiện tại</dt>
-            <dd className="mt-1"><Badge variant={table.hasActiveSession ? 'info' : 'neutral'}>{table.hasActiveSession ? 'Có phiên hoạt động' : 'Chưa có phiên hoạt động'}</Badge></dd>
-          </div>
-          <div>
-            <dt className="text-content-muted">Đơn hiện tại</dt>
-            <dd className="mt-1 font-medium text-content">{getOrderLabel(table.orderStatus)}</dd>
-          </div>
-          <div>
-            <dt className="text-content-muted">Trạng thái vận hành</dt>
-            <dd className="mt-1 font-medium text-content">{table.status === 'AVAILABLE' ? 'Trống' : 'Đang phục vụ'}</dd>
-          </div>
+          <div><dt className="text-content-muted">Vòng đời bàn</dt><dd className="mt-1"><StatusBadge entity="category" status={table.active ? 'ACTIVE' : 'INACTIVE'} /></dd></div>
+          <div><dt className="text-content-muted">Phiên hiện tại</dt><dd className="mt-1"><Badge variant={table.hasActiveSession ? 'info' : 'neutral'}>{table.hasActiveSession ? 'Có phiên hoạt động' : 'Chưa có phiên hoạt động'}</Badge></dd></div>
+          <div><dt className="text-content-muted">Đơn hiện tại</dt><dd className="mt-1 font-medium text-content">{getOrderLabel(table.orderStatus)}</dd></div>
+          <div><dt className="text-content-muted">Trạng thái vận hành</dt><dd className="mt-1 font-medium text-content">{table.status === 'AVAILABLE' ? 'Trống' : 'Đang phục vụ'}</dd></div>
         </dl>
 
         {!table.active && <p className="text-compact text-content-secondary">Bàn này không khả dụng cho thao tác phục vụ.</p>}
+        {inconsistentStateMessage && <p className="text-compact text-warning">{inconsistentStateMessage}</p>}
+        {!inconsistentStateMessage && isOpenEligible(table) && <div className="mt-auto"><Button aria-label={`Mở bàn ${table.number}`} className="w-full" disabled={Boolean(openingTableId)} loading={openingTableId === table.id} onClick={() => onOpen(table)}>Mở bàn</Button></div>}
+        {!inconsistentStateMessage && table.status === 'OCCUPIED' && table.hasActiveSession && <div className="mt-auto"><Button aria-label={`Xem phiên phục vụ của bàn ${table.number}`} className="w-full" onClick={() => onViewSession(table)} variant="secondary">Xem phiên</Button></div>}
       </div>
     </Card>
   )
 }
 
+function SessionModal({ detail, errorMessage, isLoading, onClose, onCopy, onRetry, table }: {
+  detail: SessionDetail | null
+  errorMessage: string | null
+  isLoading: boolean
+  onClose: () => void
+  onCopy: (joinCode: number) => void
+  onRetry: () => void
+  table: SessionTable | null
+}) {
+  return (
+    <Modal footer={detail && <div className="flex justify-end"><Button onClick={() => onCopy(detail.session.joinCode)} variant="secondary"><Clipboard aria-hidden="true" className="size-4" />Sao chép mã</Button></div>} isOpen={Boolean(table)} onClose={onClose} title={table ? `Phiên phục vụ · Bàn ${table.number}` : 'Phiên phục vụ'}>
+      {isLoading && <PageLoading label="Đang tải phiên phục vụ" />}
+      {!isLoading && errorMessage && <ErrorState description={errorMessage} onRetry={onRetry} title="Không thể tải phiên phục vụ" />}
+      {!isLoading && !errorMessage && detail && (
+        <div className="space-y-5">
+          <div><p className="text-compact text-content-secondary">Mã vào bàn</p><p aria-label={`Mã vào bàn ${detail.session.joinCode}`} className="mt-2 break-all text-center text-4xl font-bold tracking-[0.22em] text-content sm:text-5xl">{detail.session.joinCode}</p></div>
+          <p className="text-body text-content-secondary">Cung cấp mã này cho khách đang ngồi tại Bàn {detail.table.number}.</p>
+          <div aria-label="Trạng thái phiên phục vụ" className="flex flex-wrap gap-2"><Badge variant="info">Phiên hoạt động</Badge><StatusBadge entity="table" status={detail.table.status} /></div>
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 export function WaiterTableBoardPage() {
+  const toast = useToast()
   const [activeFilter, setActiveFilter] = useState<TableFilter>('ALL')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isSessionLoading, setIsSessionLoading] = useState(false)
+  const [openingTableId, setOpeningTableId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null)
+  const [sessionErrorMessage, setSessionErrorMessage] = useState<string | null>(null)
+  const [sessionTable, setSessionTable] = useState<SessionTable | null>(null)
+  const [tableToOpen, setTableToOpen] = useState<WaiterTable | null>(null)
   const [tables, setTables] = useState<WaiterTable[]>([])
+  const sessionRequestId = useRef(0)
 
   useEffect(() => {
     let isCurrent = true
-
     async function loadTables() {
       setIsLoading(true)
       setErrorMessage(null)
-
       try {
         const result = await getWaiterTables()
         if (isCurrent) setTables(result)
       } catch (error) {
-        if (isCurrent) {
-          setErrorMessage(getApiErrorMessage(error, 'Không thể tải danh sách bàn. Vui lòng thử lại.'))
-        }
+        if (isCurrent) setErrorMessage(getApiErrorMessage(error, 'Không thể tải danh sách bàn. Vui lòng thử lại.'))
       } finally {
         if (isCurrent) setIsLoading(false)
       }
     }
-
     void loadTables()
-    return () => {
-      isCurrent = false
-    }
+    return () => { isCurrent = false }
   }, [reloadKey])
 
-  const filteredTables = useMemo(
-    () => tables.filter(table => matchesFilter(table, activeFilter)),
-    [activeFilter, tables],
-  )
-  const filterCounts = useMemo(
-    () => new Map(filterOptions.map(filter => [filter.id, tables.filter(table => matchesFilter(table, filter.id)).length])),
-    [tables],
-  )
-
-  function reloadTables() {
-    setReloadKey(key => key + 1)
+  const filteredTables = useMemo(() => tables.filter(table => matchesFilter(table, activeFilter)), [activeFilter, tables])
+  const filterCounts = useMemo(() => new Map(filterOptions.map(filter => [filter.id, tables.filter(table => matchesFilter(table, filter.id)).length])), [tables])
+  function reloadTables() { setReloadKey(key => key + 1) }
+  function closeSessionModal() {
+    sessionRequestId.current += 1
+    setSessionDetail(null); setSessionErrorMessage(null); setSessionTable(null); setIsSessionLoading(false)
+  }
+  async function loadSession(table: SessionTable) {
+    const requestId = sessionRequestId.current + 1
+    sessionRequestId.current = requestId
+    setSessionTable(table); setSessionDetail(null); setSessionErrorMessage(null); setIsSessionLoading(true)
+    try {
+      const result = await getWaiterActiveTableSession(table.id)
+      if (sessionRequestId.current === requestId) setSessionDetail(result)
+    } catch (error) {
+      if (sessionRequestId.current === requestId) {
+        setSessionErrorMessage(getSessionErrorMessage(error))
+        if (getApiErrorCode(error) === 'ACTIVE_TABLE_SESSION_NOT_FOUND') reloadTables()
+      }
+    } finally {
+      if (sessionRequestId.current === requestId) setIsSessionLoading(false)
+    }
+  }
+  async function handleOpenTable() {
+    if (!tableToOpen || openingTableId) return
+    const table = tableToOpen
+    setOpeningTableId(table.id)
+    try {
+      const result = await openWaiterTable(table.id)
+      setSessionDetail(result)
+      setSessionErrorMessage(null); setSessionTable(result.table); setIsSessionLoading(false)
+      reloadTables()
+      toast.success(`Đã mở Bàn ${result.table.number}.`)
+    } catch (error) {
+      if (['TABLE_ALREADY_OCCUPIED', 'TABLE_HAS_ACTIVE_SESSION', 'TABLE_OPEN_CONFLICT'].includes(getApiErrorCode(error) ?? '')) reloadTables()
+      throw error
+    } finally {
+      setOpeningTableId(null)
+    }
+  }
+  async function copyJoinCode(joinCode: number) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable')
+      await navigator.clipboard.writeText(String(joinCode))
+      toast.success('Đã sao chép mã vào bàn.')
+    } catch {
+      toast.error('Không thể sao chép mã. Vui lòng sao chép thủ công.')
+    }
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        actions={<Button disabled={isLoading} onClick={reloadTables} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>}
-        description="Theo dõi trạng thái vận hành bàn từ hệ thống."
-        title="Danh sách bàn"
-      />
-
-      {!isLoading && !errorMessage && tables.length > 0 && (
-        <div aria-label="Bộ lọc danh sách bàn" className="flex flex-wrap gap-2">
-          {filterOptions.map(filter => {
-            const isActive = activeFilter === filter.id
-            const count = filterCounts.get(filter.id) ?? 0
-
-            return (
-              <Button aria-pressed={isActive} key={filter.id} onClick={() => setActiveFilter(filter.id)} variant={isActive ? 'primary' : 'secondary'}>
-                {filter.label} ({count})
-              </Button>
-            )
-          })}
-        </div>
-      )}
-
+      <PageHeader actions={<Button disabled={isLoading} onClick={reloadTables} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>} description="Theo dõi trạng thái vận hành bàn từ hệ thống." title="Danh sách bàn" />
+      {!isLoading && !errorMessage && tables.length > 0 && <div aria-label="Bộ lọc danh sách bàn" className="flex flex-wrap gap-2">{filterOptions.map(filter => <Button aria-pressed={activeFilter === filter.id} key={filter.id} onClick={() => setActiveFilter(filter.id)} variant={activeFilter === filter.id ? 'primary' : 'secondary'}>{filter.label} ({filterCounts.get(filter.id) ?? 0})</Button>)}</div>}
       {isLoading && <PageLoading label="Đang tải danh sách bàn" />}
       {!isLoading && errorMessage && <ErrorState description={errorMessage} onRetry={reloadTables} title="Không thể tải danh sách bàn" />}
       {!isLoading && !errorMessage && tables.length === 0 && <EmptyState description="Hiện chưa có bàn nào để phục vụ." icon={TableProperties} title="Chưa có bàn" />}
-      {!isLoading && !errorMessage && tables.length > 0 && filteredTables.length === 0 && (
-        <EmptyState description="Không có bàn phù hợp với bộ lọc hiện tại." icon={TableProperties} title="Không tìm thấy bàn phù hợp" />
-      )}
-      {!isLoading && !errorMessage && filteredTables.length > 0 && (
-        <ul aria-label="Danh sách bàn phục vụ" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTables.map(table => <li key={table.id}><TableCard table={table} /></li>)}
-        </ul>
-      )}
+      {!isLoading && !errorMessage && tables.length > 0 && filteredTables.length === 0 && <EmptyState description="Không có bàn phù hợp với bộ lọc hiện tại." icon={TableProperties} title="Không tìm thấy bàn phù hợp" />}
+      {!isLoading && !errorMessage && filteredTables.length > 0 && <ul aria-label="Danh sách bàn phục vụ" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{filteredTables.map(table => <li key={table.id}><TableCard onOpen={setTableToOpen} onViewSession={table => void loadSession(table)} openingTableId={openingTableId} table={table} /></li>)}</ul>}
+      <ConfirmDialog confirmLabel="Mở bàn" description={tableToOpen ? `Bàn ${tableToOpen.number} sẽ bắt đầu một phiên phục vụ mới.` : ''} isOpen={Boolean(tableToOpen)} onClose={() => setTableToOpen(null)} onConfirm={handleOpenTable} onError={error => { setTableToOpen(null); toast.error(getOpenTableErrorMessage(error)) }} title={tableToOpen ? `Mở Bàn ${tableToOpen.number}?` : 'Mở bàn'} />
+      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} isLoading={isSessionLoading} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable)} table={sessionTable} />
     </div>
   )
 }
