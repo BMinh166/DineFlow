@@ -1,4 +1,4 @@
-import { RouterProvider, createBrowserRouter } from 'react-router-dom'
+import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
 import { CustomerLayout } from '../layouts/CustomerLayout'
 import { KitchenLayout } from '../layouts/KitchenLayout'
 import { ManagerLayout } from '../layouts/ManagerLayout'
@@ -13,6 +13,7 @@ import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
 import { PublicMenuPage } from '../pages/customer/PublicMenuPage'
+import { WaiterTableBoardPage } from '../pages/waiter/WaiterTableBoardPage'
 
 const router = createBrowserRouter([
   {
@@ -40,10 +41,16 @@ const router = createBrowserRouter([
   {
     path: '/waiter',
     element: <ProtectedRoute><RoleRoute allowedRoles={['WAITER']}><WaiterLayout /></RoleRoute></ProtectedRoute>,
-  },
-  {
-    path: '/waiter/tables',
-    element: <ProtectedRoute><RoleRoute allowedRoles={['WAITER']}><WaiterLayout /></RoleRoute></ProtectedRoute>,
+    children: [
+      {
+        index: true,
+        element: <Navigate replace to="tables" />,
+      },
+      {
+        path: 'tables',
+        element: <WaiterTableBoardPage />,
+      },
+    ],
   },
   {
     path: '/kitchen',
