@@ -34,6 +34,24 @@ export function getJwtConfig(): JwtConfig {
   }
 }
 
+export function getCustomerSessionJwtConfig(): JwtConfig {
+  const secret = process.env.CUSTOMER_SESSION_SECRET?.trim()
+  const expiresIn = process.env.CUSTOMER_SESSION_EXPIRES_IN?.trim()
+
+  if (!secret) {
+    throw new Error('CUSTOMER_SESSION_SECRET must be configured.')
+  }
+
+  if (expiresIn !== '4h') {
+    throw new Error('CUSTOMER_SESSION_EXPIRES_IN must be configured as 4h.')
+  }
+
+  return {
+    secret,
+    expiresInSeconds: 4 * 60 * 60,
+  }
+}
+
 export const env = {
   clientOrigin,
   mongodbUri,
