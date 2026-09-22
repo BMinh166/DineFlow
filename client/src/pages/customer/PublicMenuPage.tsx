@@ -7,6 +7,7 @@ import { getPublicMenuCategories, getPublicMenuDishes, getPublicTable } from '..
 import type { PublicCategory, PublicDish, PublicTable } from '../../types/public-menu'
 import { formatVnd } from '../../utils/format-vnd'
 import { DishDetailModal } from './DishDetailModal'
+import { JoinTableCard } from './JoinTableCard'
 
 type TableErrorKind = 'INACTIVE' | 'INVALID_OR_MISSING' | null
 
@@ -148,6 +149,8 @@ export function PublicMenuPage() {
         <h1 className="mt-1 text-page-title text-content">Bàn {table.number}</h1>
         <p className="mt-2 text-compact text-content-secondary">Chọn món yêu thích để xem thông tin và tình trạng phục vụ.</p>
       </section>
+
+      <JoinTableCard tableId={table.id} />
 
       <SearchInput onChange={event => setSearchTerm(event.target.value)} onClear={() => setSearchTerm('')} placeholder="Tìm món ăn, đồ uống..." value={searchTerm} />
 

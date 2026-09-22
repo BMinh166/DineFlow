@@ -39,7 +39,12 @@ export function getCustomerJoinErrorKind(error: unknown): CustomerJoinErrorKind 
   const code = error.response?.data?.code
   if (code === 'INVALID_JOIN_CODE') return 'invalid-code'
   if (error.response?.status === 429 || code === 'JOIN_COOLDOWN') return 'cooldown'
-  if (code === 'TABLE_NOT_OCCUPIED' || code === 'ACTIVE_TABLE_SESSION_NOT_FOUND') return 'unavailable'
+  if (
+    code === 'TABLE_INACTIVE'
+    || code === 'TABLE_NOT_FOUND'
+    || code === 'TABLE_NOT_OCCUPIED'
+    || code === 'ACTIVE_TABLE_SESSION_NOT_FOUND'
+  ) return 'unavailable'
 
   return 'unexpected'
 }
