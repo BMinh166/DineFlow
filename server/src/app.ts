@@ -6,6 +6,7 @@ import { errorHandler } from './middleware/error-handler.js'
 import { notFoundHandler } from './middleware/not-found.js'
 import { authRouter } from './routes/auth.routes.js'
 import { customerSessionRouter } from './routes/customer-session.routes.js'
+import { customerOrderRouter } from './routes/customer-order.routes.js'
 import { healthRouter } from './routes/health.routes.js'
 import { managerCategoryRouter } from './routes/manager-category.routes.js'
 import { managerDishRouter } from './routes/manager-dish.routes.js'
@@ -23,6 +24,7 @@ if (env.nodeEnv === 'development') {
 app.use(express.json({ limit: '100kb' }))
 app.use('/api/auth', authRouter)
 app.use('/api/customer/session', customerSessionRouter)
+app.use('/api/customer/orders', customerOrderRouter)
 app.use('/api/health', healthRouter)
 app.use('/api/manager/categories', managerCategoryRouter)
 app.use('/api/manager/dishes', managerDishRouter)
