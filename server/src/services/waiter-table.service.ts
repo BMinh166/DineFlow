@@ -1,10 +1,13 @@
+import { randomInt } from 'node:crypto'
+import mongoose, { type ClientSession } from 'mongoose'
+
 import { Order } from '../models/order.js'
 import { Table } from '../models/table.js'
 import { TableSession } from '../models/table-session.js'
 import type { OrderStatus } from '../types/order-status.js'
 import type { TableSessionStatus } from '../types/table-session-status.js'
 import type { TableStatus } from '../types/table-status.js'
-import { NotFound } from '../utils/app-error.js'
+import { Conflict, NotFound } from '../utils/app-error.js'
 
 export interface WaiterTableDto {
   id: string
@@ -26,6 +29,23 @@ export interface WaiterActiveTableSessionDto {
     id: string
     status: TableSessionStatus
     joinCode: number
+  }
+}
+
+export interface OpenWaiterTableResult {
+  table: {
+    id: string
+    number: number
+    status: TableStatus
+  }
+  session: {
+    id: string
+    status: 'ACTIVE'
+    joinCode: number
+  }
+  order: {
+    id: string
+    status: 'OPEN'
   }
 }
 
@@ -51,6 +71,155 @@ type ActiveSessionForDetail = {
   _id: { toString(): string }
   status: TableSessionStatus
   joinCode: number
+}
+
+type OpenedTable = {
+  _id: { toString(): string }
+  number: number
+  status: TableStatus
+}
+
+type OpenedTableSession = {
+  _id: { toString(): string }
+  status: 'ACTIVE'
+  joinCode: number
+}
+
+type OpenedOrder = {
+  _id: { toString(): string }
+  status: 'OPEN'
+}
+
+const joinCodeGenerationAttempts = 20
+
+function activeSessionExistsError(): Conflict {
+  return new Conflict('Table already has an active session.', 'TABLE_HAS_ACTIVE_SESSION')
+}
+
+function tableInactiveError(): Conflict {
+  return new Conflict('Inactive tables cannot be opened.', 'TABLE_INACTIVE')
+}
+
+function tableOccupiedError(): Conflict {
+  return new Conflict('Table is already occupied.', 'TABLE_ALREADY_OCCUPIED')
+}
+
+function tableOpenConflictError(): Conflict {
+  return new Conflict('Table is no longer available to open.', 'TABLE_OPEN_CONFLICT')
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: unknown }).code === 11000
+}
+
+function generateJoinCode(): number {
+  return randomInt(1000, 10_000)
+}
+
+async function generateUniqueJoinCode(
+  tableId: { toString(): string },
+  transactionSession: ClientSession,
+): Promise<number> {
+  for (let attempt = 0; attempt < joinCodeGenerationAttempts; attempt += 1) {
+    const joinCode = generateJoinCode()
+    const existingSession = await TableSession.exists({ tableId, joinCode }).session(transactionSession)
+
+    if (!existingSession) {
+      return joinCode
+    }
+  }
+
+  throw new Conflict('Unable to generate a new join code.', 'JOIN_CODE_GENERATION_EXHAUSTED')
+}
+
+function toOpenWaiterTableResult(
+  table: OpenedTable,
+  tableSession: OpenedTableSession,
+  order: OpenedOrder,
+): OpenWaiterTableResult {
+  return {
+    table: {
+      id: table._id.toString(),
+      number: table.number,
+      status: table.status,
+    },
+    session: {
+      id: tableSession._id.toString(),
+      status: tableSession.status,
+      joinCode: tableSession.joinCode,
+    },
+    order: {
+      id: order._id.toString(),
+      status: order.status,
+    },
+  }
+}
+
+async function openTableInTransaction(
+  tableId: string,
+  openedBy: string,
+  transactionSession: ClientSession,
+): Promise<OpenWaiterTableResult> {
+  const table = await Table.findById(tableId)
+    .select('_id number status active')
+    .session(transactionSession)
+
+  if (!table) {
+    throw new NotFound('Table not found.', 'TABLE_NOT_FOUND')
+  }
+
+  if (!table.active) {
+    throw tableInactiveError()
+  }
+
+  if (table.status === 'OCCUPIED') {
+    throw tableOccupiedError()
+  }
+
+  const hasActiveSession = await TableSession.exists({ tableId: table._id, status: 'ACTIVE' })
+    .session(transactionSession)
+  if (hasActiveSession) {
+    throw activeSessionExistsError()
+  }
+
+  const openedTable = await Table.findOneAndUpdate(
+    { _id: table._id, active: true, status: 'AVAILABLE' },
+    { $set: { status: 'OCCUPIED' } },
+    { new: true, session: transactionSession },
+  ).select('_id number status')
+
+  if (!openedTable) {
+    throw tableOpenConflictError()
+  }
+
+  const [tableSession] = await TableSession.create(
+    [{
+      tableId: openedTable._id,
+      joinCode: await generateUniqueJoinCode(openedTable._id, transactionSession),
+      status: 'ACTIVE',
+      openedBy,
+    }],
+    { session: transactionSession },
+  )
+  const [order] = await Order.create(
+    [{ tableSessionId: tableSession._id, status: 'OPEN' }],
+    { session: transactionSession },
+  )
+  const linkResult = await TableSession.updateOne(
+    { _id: tableSession._id, status: 'ACTIVE', currentOrderId: { $exists: false } },
+    { $set: { currentOrderId: order._id } },
+    { session: transactionSession },
+  )
+
+  if (linkResult.matchedCount !== 1) {
+    throw tableOpenConflictError()
+  }
+
+  return toOpenWaiterTableResult(
+    openedTable as unknown as OpenedTable,
+    tableSession as unknown as OpenedTableSession,
+    order as unknown as OpenedOrder,
+  )
 }
 
 function toWaiterTableDto(
@@ -130,5 +299,26 @@ export async function getWaiterActiveTableSession(
       status: activeSession.status,
       joinCode: activeSession.joinCode,
     },
+  }
+}
+
+export async function openWaiterTable(
+  tableId: string,
+  openedBy: string,
+): Promise<OpenWaiterTableResult> {
+  const transactionSession = await mongoose.startSession()
+
+  try {
+    return await transactionSession.withTransaction(() =>
+      openTableInTransaction(tableId, openedBy, transactionSession),
+    )
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw activeSessionExistsError()
+    }
+
+    throw error
+  } finally {
+    await transactionSession.endSession()
   }
 }
