@@ -15,3 +15,8 @@ export const joinCustomerTableController: RequestHandler = async (request, respo
   )
   response.status(200).json(successResponse(result))
 }
+
+export const getCustomerSessionController: RequestHandler = (request, response) => {
+  const { tableId, tableSessionId } = request.customerSession!
+  response.status(200).json(successResponse({ session: { tableId, tableSessionId } }))
+}
