@@ -40,3 +40,9 @@ export class Conflict extends AppError {
     super(message, 409, code)
   }
 }
+
+export class TooManyRequests extends AppError {
+  constructor(message = 'Too many requests.', code?: string) {
+    super(message, 429, code)
+  }
+}
