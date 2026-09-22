@@ -7,7 +7,9 @@ import { getPublicMenuCategories, getPublicMenuDishes, getPublicTable } from '..
 import type { PublicCategory, PublicDish, PublicTable } from '../../types/public-menu'
 import { formatVnd } from '../../utils/format-vnd'
 import { DishDetailModal } from './DishDetailModal'
+import { CustomerCartDrawer } from './CustomerCartDrawer'
 import { JoinTableCard } from './JoinTableCard'
+import { useCustomerCart } from '../../hooks/useCustomerCart'
 
 type TableErrorKind = 'INACTIVE' | 'INVALID_OR_MISSING' | null
 
@@ -34,7 +36,7 @@ function MenuLoadingState() {
   )
 }
 
-function DishCard({ dish, onViewDetails }: { dish: PublicDish, onViewDetails: (dish: PublicDish) => void }) {
+function DishCard({ dish, onAddToCart, onViewDetails, quantity }: { dish: PublicDish, onAddToCart: (dish: PublicDish) => void, onViewDetails: (dish: PublicDish) => void, quantity: number }) {
   return (
     <Card className="flex h-full flex-col overflow-hidden" elevated>
       <div className="relative aspect-4/3 bg-surface-muted">
@@ -51,6 +53,8 @@ function DishCard({ dish, onViewDetails }: { dish: PublicDish, onViewDetails: (d
           <span className="text-caption text-content-secondary">{dish.isAvailable ? 'Có sẵn' : 'Tạm hết'}</span>
         </div>
         <Button className="mt-4 w-full" onClick={() => onViewDetails(dish)} variant="secondary">Xem chi tiết</Button>
+        {quantity > 0 && <p className="mt-3 text-caption text-brand">Trong giỏ: {quantity}</p>}
+        <Button className="mt-3 w-full" disabled={!dish.isAvailable} onClick={() => onAddToCart(dish)}>Thêm vào giỏ</Button>
       </div>
     </Card>
   )
@@ -68,6 +72,7 @@ export function PublicMenuPage() {
   const [selectedDish, setSelectedDish] = useState<PublicDish | null>(null)
   const [table, setTable] = useState<PublicTable | null>(null)
   const [tableError, setTableError] = useState<TableErrorKind>(null)
+  const { addItem, getQuantity } = useCustomerCart(tableId)
 
   useEffect(() => {
     let isCurrent = true
@@ -152,6 +157,8 @@ export function PublicMenuPage() {
 
       <JoinTableCard tableId={table.id} />
 
+      <div className="flex justify-end"><CustomerCartDrawer tableId={table.id} /></div>
+
       <SearchInput onChange={event => setSearchTerm(event.target.value)} onClear={() => setSearchTerm('')} placeholder="Tìm món ăn, đồ uống..." value={searchTerm} />
 
       <section aria-label="Lọc theo danh mục">
@@ -169,12 +176,12 @@ export function PublicMenuPage() {
         <section aria-label="Danh sách món ăn">
           <h2 className="sr-only">Món ăn</h2>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} onViewDetails={setSelectedDish} /></li>)}
+            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} onAddToCart={addItem} onViewDetails={setSelectedDish} quantity={getQuantity(dish.id)} /></li>)}
           </ul>
         </section>
       )}
       </div>
-      <DishDetailModal dish={selectedDish} isOpen={selectedDish !== null} onClose={() => setSelectedDish(null)} />
+      <DishDetailModal dish={selectedDish} isOpen={selectedDish !== null} onAddToCart={addItem} onClose={() => setSelectedDish(null)} />
     </>
   )
 }
