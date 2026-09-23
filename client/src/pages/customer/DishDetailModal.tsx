@@ -7,6 +7,7 @@ import { formatVnd } from '../../utils/format-vnd'
 type DishDetailModalProps = {
   dish: PublicDish | null
   isOpen: boolean
+  isAddDisabled: boolean
   onAddToCart: (dish: PublicDish) => void
   onClose: () => void
 }
@@ -23,7 +24,7 @@ function DishDetailImage({ dish }: { dish: PublicDish }) {
   )
 }
 
-export function DishDetailModal({ dish, isOpen, onAddToCart, onClose }: DishDetailModalProps) {
+export function DishDetailModal({ dish, isAddDisabled, isOpen, onAddToCart, onClose }: DishDetailModalProps) {
   if (!dish) return null
 
   return (
@@ -43,7 +44,7 @@ export function DishDetailModal({ dish, isOpen, onAddToCart, onClose }: DishDeta
         ) : (
           <p className="text-body text-content-muted">Món này chưa có mô tả.</p>
         )}
-        <Button className="w-full" disabled={!dish.isAvailable} onClick={() => onAddToCart(dish)}>Thêm vào giỏ</Button>
+        <Button className="w-full" disabled={!dish.isAvailable || isAddDisabled} onClick={() => onAddToCart(dish)}>Thêm vào giỏ</Button>
       </div>
     </Modal>
   )

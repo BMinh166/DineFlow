@@ -36,7 +36,7 @@ function MenuLoadingState() {
   )
 }
 
-function DishCard({ dish, onAddToCart, onViewDetails, quantity }: { dish: PublicDish, onAddToCart: (dish: PublicDish) => void, onViewDetails: (dish: PublicDish) => void, quantity: number }) {
+function DishCard({ dish, isAddDisabled, onAddToCart, onViewDetails, quantity }: { dish: PublicDish, isAddDisabled: boolean, onAddToCart: (dish: PublicDish) => void, onViewDetails: (dish: PublicDish) => void, quantity: number }) {
   return (
     <Card className="flex h-full flex-col overflow-hidden" elevated>
       <div className="relative aspect-4/3 bg-surface-muted">
@@ -54,7 +54,7 @@ function DishCard({ dish, onAddToCart, onViewDetails, quantity }: { dish: Public
         </div>
         <Button className="mt-4 w-full" onClick={() => onViewDetails(dish)} variant="secondary">Xem chi tiết</Button>
         {quantity > 0 && <p className="mt-3 text-caption text-brand">Trong giỏ: {quantity}</p>}
-        <Button className="mt-3 w-full" disabled={!dish.isAvailable} onClick={() => onAddToCart(dish)}>Thêm vào giỏ</Button>
+        <Button className="mt-3 w-full" disabled={!dish.isAvailable || isAddDisabled} onClick={() => onAddToCart(dish)}>Thêm vào giỏ</Button>
       </div>
     </Card>
   )
@@ -72,7 +72,7 @@ export function PublicMenuPage() {
   const [selectedDish, setSelectedDish] = useState<PublicDish | null>(null)
   const [table, setTable] = useState<PublicTable | null>(null)
   const [tableError, setTableError] = useState<TableErrorKind>(null)
-  const { addItem, getQuantity } = useCustomerCart(tableId)
+  const { addItem, getQuantity, isSubmissionPending } = useCustomerCart(tableId)
 
   useEffect(() => {
     let isCurrent = true
@@ -176,12 +176,12 @@ export function PublicMenuPage() {
         <section aria-label="Danh sách món ăn">
           <h2 className="sr-only">Món ăn</h2>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} onAddToCart={addItem} onViewDetails={setSelectedDish} quantity={getQuantity(dish.id)} /></li>)}
+            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} isAddDisabled={isSubmissionPending} onAddToCart={addItem} onViewDetails={setSelectedDish} quantity={getQuantity(dish.id)} /></li>)}
           </ul>
         </section>
       )}
       </div>
-      <DishDetailModal dish={selectedDish} isOpen={selectedDish !== null} onAddToCart={addItem} onClose={() => setSelectedDish(null)} />
+      <DishDetailModal dish={selectedDish} isAddDisabled={isSubmissionPending} isOpen={selectedDish !== null} onAddToCart={addItem} onClose={() => setSelectedDish(null)} />
     </>
   )
 }

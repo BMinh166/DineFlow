@@ -13,6 +13,7 @@ export function useCustomerCart(tableId: string) {
 
   return useMemo(() => ({
     items,
+    isSubmissionPending: context.isSubmissionPending,
     itemCount,
     displayTotal,
     addItem: (dish: PublicDish) => context.addItem(tableId, dish),
@@ -20,6 +21,7 @@ export function useCustomerCart(tableId: string) {
     decreaseQuantity: (dishId: string) => context.decreaseQuantity(tableId, dishId),
     increaseQuantity: (dishId: string) => context.increaseQuantity(tableId, dishId),
     removeItem: (dishId: string) => context.removeItem(tableId, dishId),
+    setSubmissionPending: context.setSubmissionPending,
     getQuantity: (dishId: string) => items.find(item => item.dishId === dishId)?.quantity ?? 0,
   }), [context, displayTotal, itemCount, items, tableId])
 }
