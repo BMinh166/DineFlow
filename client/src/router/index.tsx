@@ -13,6 +13,7 @@ import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
 import { PublicMenuPage } from '../pages/customer/PublicMenuPage'
+import { CustomerCurrentOrderPage } from '../pages/customer/CustomerCurrentOrderPage'
 import { WaiterTableBoardPage } from '../pages/waiter/WaiterTableBoardPage'
 
 const router = createBrowserRouter([
@@ -35,6 +36,10 @@ const router = createBrowserRouter([
       {
         path: 'menu',
         element: <PublicMenuPage />,
+      },
+      {
+        path: 'order',
+        element: <CustomerCurrentOrderPage />,
       },
     ],
   },

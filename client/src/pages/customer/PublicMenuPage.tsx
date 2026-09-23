@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import axios from 'axios'
 import { SearchX, Utensils } from 'lucide-react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { Badge, Button, Card, EmptyState, ErrorState, SearchInput, Skeleton } from '../../components/ui'
 import { getPublicMenuCategories, getPublicMenuDishes, getPublicTable } from '../../services/public-menu-api'
 import type { PublicCategory, PublicDish, PublicTable } from '../../types/public-menu'
@@ -10,6 +10,7 @@ import { DishDetailModal } from './DishDetailModal'
 import { CustomerCartDrawer } from './CustomerCartDrawer'
 import { JoinTableCard } from './JoinTableCard'
 import { useCustomerCart } from '../../hooks/useCustomerCart'
+import { useCustomerSession } from '../../hooks/useCustomerSession'
 
 type TableErrorKind = 'INACTIVE' | 'INVALID_OR_MISSING' | null
 
@@ -73,6 +74,7 @@ export function PublicMenuPage() {
   const [table, setTable] = useState<PublicTable | null>(null)
   const [tableError, setTableError] = useState<TableErrorKind>(null)
   const { addItem, getQuantity, isSubmissionPending } = useCustomerCart(tableId)
+  const { isAuthorizedForTable } = useCustomerSession()
 
   useEffect(() => {
     let isCurrent = true
@@ -157,7 +159,7 @@ export function PublicMenuPage() {
 
       <JoinTableCard tableId={table.id} />
 
-      <div className="flex justify-end"><CustomerCartDrawer tableId={table.id} /></div>
+      <div className="flex flex-wrap justify-end gap-3">{isAuthorizedForTable(table.id) && <Link className="inline-flex min-h-10 items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-label font-semibold text-content transition-colors hover:bg-surface-muted" to={`/table/${encodeURIComponent(table.id)}/order`}>Đơn hiện tại</Link>}<CustomerCartDrawer tableId={table.id} /></div>
 
       <SearchInput onChange={event => setSearchTerm(event.target.value)} onClear={() => setSearchTerm('')} placeholder="Tìm món ăn, đồ uống..." value={searchTerm} />
 
