@@ -46,8 +46,8 @@ export async function placeCustomerOrder(items: CustomerOrderItemInput[]): Promi
   return response.data.data
 }
 
-export async function getCustomerCurrentOrder(): Promise<CustomerCurrentOrder> {
-  const response = await customerApi.get<ApiSuccessResponse<{ order: CustomerCurrentOrder }>>('/customer/orders/current')
+export async function getCustomerCurrentOrder(signal?: AbortSignal): Promise<CustomerCurrentOrder> {
+  const response = await customerApi.get<ApiSuccessResponse<{ order: CustomerCurrentOrder }>>('/customer/orders/current', { signal })
   return response.data.data.order
 }
 

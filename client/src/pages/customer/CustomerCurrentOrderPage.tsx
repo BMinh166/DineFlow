@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
-import { ClipboardList } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ClipboardList, RefreshCw } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
-import { EmptyState, ErrorState, PageLoading, StatusBadge } from '../../components/ui'
+import { Button, EmptyState, ErrorState, PageLoading, StatusBadge } from '../../components/ui'
 import { useCustomerSession } from '../../hooks/useCustomerSession'
 import { getCustomerCurrentOrder, getCustomerCurrentOrderErrorKind, type CustomerCurrentOrder } from '../../services/customer-order-api'
 import { formatVnd } from '../../utils/format-vnd'
 
 type CurrentOrderViewState = 'idle' | 'loading' | 'not-found' | 'error'
+
+const pollingIntervalMs = 10_000
 
 export function CustomerCurrentOrderPage() {
   const { tableId = '' } = useParams()
@@ -16,11 +18,15 @@ export function CustomerCurrentOrderPage() {
   const [orderTableId, setOrderTableId] = useState<string | null>(null)
   const [viewState, setViewState] = useState<CurrentOrderViewState>('loading')
   const [reloadKey, setReloadKey] = useState(0)
+  const [hasBackgroundRefreshError, setHasBackgroundRefreshError] = useState(false)
+  const loadedTableIdRef = useRef<string | null>(null)
   const isAuthorized = isAuthorizedForTable(tableId)
   const currentOrder = orderTableId === tableId ? order : null
 
   useEffect(() => {
     let isCurrent = true
+    let requestInFlight = false
+    const abortController = new AbortController()
 
     if (status === 'restoring') return
 
@@ -28,29 +34,55 @@ export function CustomerCurrentOrderPage() {
       setOrder(null)
       setOrderTableId(null)
       setViewState('idle')
+      setHasBackgroundRefreshError(false)
+      loadedTableIdRef.current = null
       return
     }
 
-    setOrder(null)
-    setOrderTableId(null)
-    setViewState('loading')
+    const isInitialLoad = loadedTableIdRef.current !== tableId
+    if (isInitialLoad) {
+      setOrder(null)
+      setOrderTableId(null)
+      setViewState('loading')
+      setHasBackgroundRefreshError(false)
+    }
 
-    void getCustomerCurrentOrder()
-      .then(result => {
+    async function refreshCurrentOrder() {
+      if (requestInFlight) return
+      requestInFlight = true
+
+      try {
+        const result = await getCustomerCurrentOrder(abortController.signal)
         if (!isCurrent) return
+        loadedTableIdRef.current = tableId
         setOrder(result)
         setOrderTableId(tableId)
         setViewState('idle')
-      })
-      .catch(error => {
-        if (!isCurrent) return
-        setOrder(null)
-        setOrderTableId(null)
-        setViewState(getCustomerCurrentOrderErrorKind(error) === 'not-found' ? 'not-found' : 'error')
-      })
+        setHasBackgroundRefreshError(false)
+      } catch (error) {
+        if (!isCurrent || abortController.signal.aborted) return
+
+        const errorKind = getCustomerCurrentOrderErrorKind(error)
+        if (errorKind === 'not-found' || errorKind === 'session-expired' || loadedTableIdRef.current !== tableId) {
+          if (errorKind === 'session-expired') loadedTableIdRef.current = null
+          setOrder(null)
+          setOrderTableId(null)
+          setViewState(errorKind === 'not-found' ? 'not-found' : 'error')
+        } else {
+          setHasBackgroundRefreshError(true)
+        }
+      } finally {
+        requestInFlight = false
+      }
+    }
+
+    void refreshCurrentOrder()
+    const pollingTimer = window.setInterval(() => void refreshCurrentOrder(), pollingIntervalMs)
 
     return () => {
       isCurrent = false
+      window.clearInterval(pollingTimer)
+      abortController.abort()
     }
   }, [isAuthorized, reloadKey, status, tableId])
 
@@ -79,8 +111,10 @@ export function CustomerCurrentOrderPage() {
           <p className="text-label text-brand">Đơn của bạn</p>
           <h1 className="mt-1 text-page-title text-content">Đơn hiện tại</h1>
         </div>
-        <StatusBadge entity="order" status={currentOrder.status} />
+        <div className="flex items-center gap-3"><StatusBadge entity="order" status={currentOrder.status} /><Button aria-label="Làm mới đơn hiện tại" onClick={() => setReloadKey(key => key + 1)} size="sm" variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button></div>
       </header>
+
+      {hasBackgroundRefreshError && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Không thể cập nhật đơn hiện tại. Dữ liệu gần nhất vẫn đang được hiển thị.</p>}
 
       {currentOrder.items.length === 0 ? (
         <EmptyState action={<Link className="inline-flex min-h-10 items-center justify-center rounded-control bg-brand px-4 py-2 text-label font-semibold text-on-primary transition-colors hover:bg-brand-hover" to={menuPath}>Gọi món</Link>} description="Bạn có thể chọn món từ thực đơn để bắt đầu." icon={ClipboardList} title="Đơn hiện tại chưa có món" />
