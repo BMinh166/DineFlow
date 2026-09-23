@@ -7,6 +7,7 @@ import {
 import { ORDER_STATUSES, type OrderStatus } from '../types/order-status.js'
 
 export interface OrderItemDocument {
+  _id: Types.ObjectId
   dishId: Types.ObjectId
   dishNameSnapshot: string
   unitPriceSnapshot: number
