@@ -8,9 +8,15 @@ import {
   startPreparingKitchenItem,
 } from '../../services/kitchen-queue-api'
 import type { KitchenItemStatus, KitchenQueueTicket } from '../../types/kitchen'
-import { getApiErrorMessage } from '../../utils/api-error'
+import { getApiErrorCode, getApiErrorMessage } from '../../utils/api-error'
 
 type KitchenTab = KitchenItemStatus
+type QueueLoadOptions = {
+  background?: boolean
+  force?: boolean
+}
+
+const pollingIntervalMs = 10_000
 
 const tabLabels: Record<KitchenTab, string> = {
   PENDING: 'Chờ chế biến',
@@ -116,33 +122,70 @@ export function KitchenQueuePage() {
   const toast = useToast()
   const [activeTab, setActiveTab] = useState<KitchenTab>('PENDING')
   const [actionItemId, setActionItemId] = useState<string | null>(null)
+  const [backgroundErrorMessage, setBackgroundErrorMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [tickets, setTickets] = useState<KitchenQueueTicket[]>([])
+  const actionItemIdRef = useRef<string | null>(null)
+  const hasLoadedQueueRef = useRef(false)
   const latestRequestId = useRef(0)
+  const queueRequestPromiseRef = useRef<Promise<boolean> | null>(null)
 
-  const loadQueue = useCallback(async (): Promise<boolean> => {
+  const loadQueue = useCallback((options: QueueLoadOptions = {}): Promise<boolean> => {
+    const { background = false, force = false } = options
+    const existingRequest = queueRequestPromiseRef.current
+    if (existingRequest) {
+      if (!force) return Promise.resolve(false)
+      return existingRequest.then(() => loadQueue({ ...options, force: false }))
+    }
+
     const requestId = latestRequestId.current + 1
     latestRequestId.current = requestId
-    setIsLoading(true)
-    setErrorMessage(null)
+    const isBackgroundRefresh = background || hasLoadedQueueRef.current
 
-    try {
-      const result = await getKitchenQueue()
-      if (latestRequestId.current === requestId) setTickets(result)
-      return true
-    } catch (error) {
-      if (latestRequestId.current === requestId) {
-        setErrorMessage(getApiErrorMessage(error, 'Không thể tải hàng đợi bếp. Vui lòng thử lại.'))
-      }
-      return false
-    } finally {
-      if (latestRequestId.current === requestId) setIsLoading(false)
+    if (!isBackgroundRefresh) {
+      setIsLoading(true)
+      setErrorMessage(null)
     }
+
+    const requestPromise = (async (): Promise<boolean> => {
+      try {
+        const result = await getKitchenQueue()
+        if (latestRequestId.current === requestId) {
+          setTickets(result)
+          setErrorMessage(null)
+          setBackgroundErrorMessage(null)
+          hasLoadedQueueRef.current = true
+        }
+        return true
+      } catch (error) {
+        if (latestRequestId.current === requestId) {
+          const message = getApiErrorMessage(error, 'Không thể tải hàng đợi bếp. Vui lòng thử lại.')
+          if (isBackgroundRefresh) setBackgroundErrorMessage(message)
+          else setErrorMessage(message)
+        }
+        return false
+      } finally {
+        if (latestRequestId.current === requestId && !isBackgroundRefresh) setIsLoading(false)
+        queueRequestPromiseRef.current = null
+      }
+    })()
+
+    queueRequestPromiseRef.current = requestPromise
+    return requestPromise
   }, [])
 
   useEffect(() => {
-    void loadQueue()
+    void loadQueue({ force: true })
+    const pollingTimer = window.setInterval(() => {
+      if (actionItemIdRef.current) return
+      void loadQueue({ background: true })
+    }, pollingIntervalMs)
+
+    return () => {
+      latestRequestId.current += 1
+      window.clearInterval(pollingTimer)
+    }
   }, [loadQueue])
 
   const counts = useMemo(() => ({
@@ -156,16 +199,24 @@ export function KitchenQueuePage() {
   )
 
   async function handleTransition(ticket: KitchenQueueTicket, transition: () => Promise<unknown>, successMessage: string) {
-    if (actionItemId) return
+    if (actionItemIdRef.current) return
 
+    actionItemIdRef.current = ticket.itemId
     setActionItemId(ticket.itemId)
     try {
       await transition()
       toast.success(successMessage)
-      await loadQueue()
+      await loadQueue({ background: true, force: true })
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'Không thể cập nhật trạng thái món. Vui lòng thử lại.'))
+      const errorCode = getApiErrorCode(error)
+      if (errorCode === 'KITCHEN_ITEM_TRANSITION_CONFLICT' || errorCode === 'KITCHEN_ORDER_NOT_ELIGIBLE') {
+        toast.warning('Trạng thái món đã thay đổi. Hàng đợi đang được đồng bộ lại.')
+        await loadQueue({ background: true, force: true })
+      } else {
+        toast.error(getApiErrorMessage(error, 'Không thể cập nhật trạng thái món. Vui lòng thử lại.'))
+      }
     } finally {
+      actionItemIdRef.current = null
       setActionItemId(null)
     }
   }
@@ -198,7 +249,7 @@ export function KitchenQueuePage() {
           aria-label="Làm mới hàng đợi bếp"
           className="border-kitchen-border !bg-kitchen-surface !text-kitchen-text hover:!bg-kitchen-surface-hover"
           disabled={isLoading || actionItemId !== null}
-          onClick={() => void loadQueue()}
+          onClick={() => void loadQueue({ background: hasLoadedQueueRef.current, force: true })}
           variant="secondary"
         >
           <RefreshCw aria-hidden="true" className="size-4" />Làm mới
@@ -238,6 +289,12 @@ export function KitchenQueuePage() {
           <p className="mt-2 text-body text-kitchen-text-secondary">{errorMessage}</p>
           <Button className="mt-5" onClick={() => void loadQueue()} variant="secondary">Thử lại</Button>
         </section>
+      )}
+
+      {!isLoading && !errorMessage && backgroundErrorMessage && (
+        <p className="rounded-control border border-warning/60 bg-kitchen-surface p-3 text-compact text-kitchen-text-secondary" role="status">
+          Không thể cập nhật hàng đợi mới nhất. Dữ liệu gần nhất vẫn đang được hiển thị.
+        </p>
       )}
 
       {!isLoading && !errorMessage && visibleTickets.length === 0 && (
