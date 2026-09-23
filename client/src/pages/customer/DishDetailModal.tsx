@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Utensils } from 'lucide-react'
-import { Badge, Modal } from '../../components/ui'
+import { Badge, Button, Modal } from '../../components/ui'
 import type { PublicDish } from '../../types/public-menu'
 import { formatVnd } from '../../utils/format-vnd'
 
 type DishDetailModalProps = {
   dish: PublicDish | null
   isOpen: boolean
+  isAddDisabled: boolean
+  onAddToCart: (dish: PublicDish) => void
   onClose: () => void
 }
 
@@ -22,7 +24,7 @@ function DishDetailImage({ dish }: { dish: PublicDish }) {
   )
 }
 
-export function DishDetailModal({ dish, isOpen, onClose }: DishDetailModalProps) {
+export function DishDetailModal({ dish, isAddDisabled, isOpen, onAddToCart, onClose }: DishDetailModalProps) {
   if (!dish) return null
 
   return (
@@ -42,6 +44,7 @@ export function DishDetailModal({ dish, isOpen, onClose }: DishDetailModalProps)
         ) : (
           <p className="text-body text-content-muted">Món này chưa có mô tả.</p>
         )}
+        <Button className="w-full" disabled={!dish.isAvailable || isAddDisabled} onClick={() => onAddToCart(dish)}>Thêm vào giỏ</Button>
       </div>
     </Modal>
   )

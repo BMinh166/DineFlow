@@ -1,5 +1,27 @@
 import { useEffect, useRef } from 'react'
 
+let activeScrollLocks = 0
+let initialBodyOverflow: string | null = null
+
+function lockBodyScroll() {
+  if (activeScrollLocks === 0) {
+    initialBodyOverflow = document.body.style.overflow
+  }
+
+  activeScrollLocks += 1
+  document.body.style.overflow = 'hidden'
+}
+
+function unlockBodyScroll() {
+  if (activeScrollLocks === 0) return
+
+  activeScrollLocks -= 1
+  if (activeScrollLocks === 0) {
+    document.body.style.overflow = initialBodyOverflow ?? ''
+    initialBodyOverflow = null
+  }
+}
+
 type DialogBehaviorOptions = {
   dismissible: boolean
   isOpen: boolean
@@ -24,8 +46,7 @@ export function useDialogBehavior({ dismissible, isOpen, onClose }: DialogBehavi
     if (!isOpen) return
 
     const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    lockBodyScroll()
     dialogRef.current?.focus()
 
     function handleKeyDown(event: KeyboardEvent) {
@@ -58,7 +79,7 @@ export function useDialogBehavior({ dismissible, isOpen, onClose }: DialogBehavi
 
     document.addEventListener('keydown', handleKeyDown)
     return () => {
-      document.body.style.overflow = previousOverflow
+      unlockBodyScroll()
       document.removeEventListener('keydown', handleKeyDown)
       previousActiveElement?.focus()
     }
