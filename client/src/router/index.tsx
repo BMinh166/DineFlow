@@ -14,6 +14,7 @@ import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
 import { PublicMenuPage } from '../pages/customer/PublicMenuPage'
 import { CustomerCurrentOrderPage } from '../pages/customer/CustomerCurrentOrderPage'
+import { KitchenQueuePage } from '../pages/kitchen/KitchenQueuePage'
 import { WaiterTableBoardPage } from '../pages/waiter/WaiterTableBoardPage'
 
 const router = createBrowserRouter([
@@ -60,6 +61,12 @@ const router = createBrowserRouter([
   {
     path: '/kitchen',
     element: <ProtectedRoute><RoleRoute allowedRoles={['KITCHEN']}><KitchenLayout /></RoleRoute></ProtectedRoute>,
+    children: [
+      {
+        index: true,
+        element: <KitchenQueuePage />,
+      },
+    ],
   },
   {
     path: '/manager',
