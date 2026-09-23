@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 type ApiErrorResponse = {
+  code?: unknown
   message?: unknown
   success?: unknown
 }
@@ -16,4 +17,10 @@ export function getApiErrorMessage(error: unknown, fallback = 'Đã xảy ra l�
   if (success === false && typeof message === 'string' && message.trim()) return message
 
   return fallback
+}
+
+export function getApiErrorCode(error: unknown): string | undefined {
+  if (!axios.isAxiosError(error) || !isApiErrorResponse(error.response?.data)) return undefined
+
+  return typeof error.response.data.code === 'string' ? error.response.data.code : undefined
 }
