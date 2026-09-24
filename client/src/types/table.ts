@@ -9,6 +9,7 @@ export interface ManagerTable {
 }
 
 export type WaiterTableOrderStatus = 'OPEN' | 'PAYMENT_REQUESTED' | 'CLOSED'
+export type OrderItemStatus = 'PENDING' | 'PREPARING' | 'COMPLETED'
 
 export interface WaiterTable {
   id: string
@@ -30,6 +31,24 @@ export interface WaiterActiveTableSession {
     id: string
     status: 'ACTIVE'
     joinCode: number
+    openedAt: string
+    openedBy: {
+      id: string
+      name: string
+    }
+  }
+  order: {
+    id: string
+    status: WaiterTableOrderStatus
+    total: number
+    itemCount: number
+    items: Array<{
+      id: string
+      dishNameSnapshot: string
+      unitPriceSnapshot: number
+      quantity: number
+      status: OrderItemStatus
+    }>
   }
 }
 

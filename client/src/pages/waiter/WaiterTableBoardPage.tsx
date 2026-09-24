@@ -6,13 +6,14 @@ import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Modal, Page
 import { getWaiterActiveTableSession, getWaiterTables, openWaiterTable } from '../../services/waiter-table-api'
 import type { OpenWaiterTableResult, WaiterActiveTableSession, WaiterTable } from '../../types/table'
 import { getApiErrorMessage } from '../../utils/api-error'
+import { formatVnd } from '../../utils/format-vnd'
 
 type TableFilter = 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'PAYMENT_REQUESTED'
 type SessionTable = Pick<WaiterTable, 'id' | 'number'> | OpenWaiterTableResult['table']
-type SessionDetail = {
-  table: Pick<WaiterActiveTableSession['table'], 'id' | 'number' | 'status'>
-  session: WaiterActiveTableSession['session']
-}
+type SessionDetail = WaiterActiveTableSession
+type SessionRefreshMode = 'background' | 'initial'
+
+const pollingIntervalMs = 10_000
 
 const filterOptions: { id: TableFilter; label: string }[] = [
   { id: 'ALL', label: 'Tất cả' },
@@ -50,9 +51,39 @@ function getSessionErrorMessage(error: unknown): string {
   switch (getApiErrorCode(error)) {
     case 'INVALID_OBJECT_ID': return 'Mã bàn không hợp lệ. Vui lòng tải lại danh sách.'
     case 'TABLE_NOT_FOUND': return 'Không tìm thấy bàn. Vui lòng tải lại danh sách.'
+    case 'TABLE_INACTIVE': return 'Bàn này không còn hoạt động. Vui lòng tải lại danh sách.'
+    case 'TABLE_NOT_OCCUPIED': return 'Bàn này hiện không được phục vụ. Vui lòng tải lại danh sách.'
     case 'ACTIVE_TABLE_SESSION_NOT_FOUND': return 'Bàn này hiện không có phiên phục vụ hoạt động. Vui lòng tải lại danh sách.'
+    case 'CURRENT_ORDER_NOT_FOUND': return 'Không thể xác định đơn hiện tại của bàn. Vui lòng tải lại danh sách.'
+    case 'ACTIVE_TABLE_SESSION_INCONSISTENT': return 'Dữ liệu phiên phục vụ không nhất quán. Vui lòng tải lại danh sách.'
     default: return getApiErrorMessage(error, 'Không thể tải phiên phục vụ. Vui lòng thử lại.')
   }
+}
+
+function formatOpenedAt(openedAt: string): string {
+  const date = new Date(openedAt)
+  if (Number.isNaN(date.getTime())) return 'Chưa xác định'
+
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
+
+function getShortOrderId(orderId: string): string {
+  return `#${orderId.slice(-6).toUpperCase()}`
+}
+
+function isAuthoritativeSessionError(error: unknown): boolean {
+  return [
+    'ACTIVE_TABLE_SESSION_INCONSISTENT',
+    'ACTIVE_TABLE_SESSION_NOT_FOUND',
+    'CURRENT_ORDER_NOT_FOUND',
+    'INVALID_OBJECT_ID',
+    'TABLE_INACTIVE',
+    'TABLE_NOT_FOUND',
+    'TABLE_NOT_OCCUPIED',
+  ].includes(getApiErrorCode(error) ?? '')
 }
 
 function isOpenEligible(table: WaiterTable): boolean {
@@ -118,9 +149,10 @@ function TableCard({ onOpen, onViewSession, openingTableId, table }: {
   )
 }
 
-function SessionModal({ detail, errorMessage, isLoading, onClose, onCopy, onRetry, table }: {
+function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isLoading, onClose, onCopy, onRetry, table }: {
   detail: SessionDetail | null
   errorMessage: string | null
+  hasBackgroundRefreshError: boolean
   isLoading: boolean
   onClose: () => void
   onCopy: (joinCode: number) => void
@@ -128,14 +160,38 @@ function SessionModal({ detail, errorMessage, isLoading, onClose, onCopy, onRetr
   table: SessionTable | null
 }) {
   return (
-    <Modal footer={detail && <div className="flex justify-end"><Button onClick={() => onCopy(detail.session.joinCode)} variant="secondary"><Clipboard aria-hidden="true" className="size-4" />Sao chép mã</Button></div>} isOpen={Boolean(table)} onClose={onClose} title={table ? `Phiên phục vụ · Bàn ${table.number}` : 'Phiên phục vụ'}>
+    <Modal className="max-w-2xl" footer={detail && <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button onClick={onRetry} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button><Button onClick={() => onCopy(detail.session.joinCode)} variant="secondary"><Clipboard aria-hidden="true" className="size-4" />Sao chép mã</Button></div>} isOpen={Boolean(table)} onClose={onClose} title={table ? `Chi tiết Bàn ${table.number}` : 'Chi tiết bàn'}>
       {isLoading && <PageLoading label="Đang tải phiên phục vụ" />}
       {!isLoading && errorMessage && <ErrorState description={errorMessage} onRetry={onRetry} title="Không thể tải phiên phục vụ" />}
       {!isLoading && !errorMessage && detail && (
-        <div className="space-y-5">
-          <div><p className="text-compact text-content-secondary">Mã vào bàn</p><p aria-label={`Mã vào bàn ${detail.session.joinCode}`} className="mt-2 break-all text-center text-4xl font-bold tracking-[0.22em] text-content sm:text-5xl">{detail.session.joinCode}</p></div>
-          <p className="text-body text-content-secondary">Cung cấp mã này cho khách đang ngồi tại Bàn {detail.table.number}.</p>
-          <div aria-label="Trạng thái phiên phục vụ" className="flex flex-wrap gap-2"><Badge variant="info">Phiên hoạt động</Badge><StatusBadge entity="table" status={detail.table.status} /></div>
+        <div className="space-y-6">
+          {hasBackgroundRefreshError && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Không thể cập nhật chi tiết bàn. Dữ liệu gần nhất vẫn đang được hiển thị.</p>}
+          <div aria-label={`Thông tin Bàn ${detail.table.number}`} className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface-muted p-4">
+            <div><p className="text-compact text-content-secondary">Bàn</p><p className="mt-1 text-subsection text-content">Bàn {detail.table.number}</p></div>
+            <div aria-label="Trạng thái bàn" className="flex flex-wrap gap-2"><Badge variant="info">Phiên hoạt động</Badge><StatusBadge entity="table" status={detail.table.status} /></div>
+          </div>
+
+          <section aria-labelledby="waiter-session-heading">
+            <h3 className="text-card-title text-content" id="waiter-session-heading">Phiên phục vụ</h3>
+            <dl className="mt-3 grid gap-3 rounded-card border border-border p-4 sm:grid-cols-2">
+              <div><dt className="text-compact text-content-secondary">Mở lúc</dt><dd className="mt-1 break-words font-medium text-content">{formatOpenedAt(detail.session.openedAt)}</dd></div>
+              <div><dt className="text-compact text-content-secondary">Mở bởi</dt><dd className="mt-1 break-words font-medium text-content">{detail.session.openedBy.name}</dd></div>
+              <div className="sm:col-span-2"><dt className="text-compact text-content-secondary">Mã vào bàn</dt><dd aria-label={`Mã vào bàn ${detail.session.joinCode}`} className="mt-2 break-all text-3xl font-bold tracking-[0.18em] text-content sm:text-4xl">{detail.session.joinCode}</dd></div>
+            </dl>
+          </section>
+
+          <section aria-labelledby="waiter-order-heading">
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-card-title text-content" id="waiter-order-heading">Đơn hiện tại</h3><p className="mt-1 text-compact text-content-secondary">Đơn {getShortOrderId(detail.order.id)}</p></div><StatusBadge entity="order" status={detail.order.status} /></div>
+            <dl className="mt-3 grid gap-3 rounded-card border border-border p-4 sm:grid-cols-2">
+              <div><dt className="text-compact text-content-secondary">Tổng cộng</dt><dd className="mt-1 text-price text-content">{formatVnd(detail.order.total)}</dd></div>
+              <div><dt className="text-compact text-content-secondary">Số món</dt><dd className="mt-1 text-subsection text-content">{detail.order.itemCount}</dd></div>
+            </dl>
+          </section>
+
+          <section aria-labelledby="waiter-order-items-heading">
+            <h3 className="text-card-title text-content" id="waiter-order-items-heading">Món đã gọi</h3>
+            {detail.order.items.length === 0 ? <EmptyState description="Đơn hiện tại chưa có món nào." title="Chưa có món" /> : <ul aria-label="Danh sách món đã gọi" className="mt-3 space-y-3">{detail.order.items.map(item => <li className="rounded-card border border-border p-4" key={item.id}><div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h4 className="break-words text-label text-content">{item.dishNameSnapshot}</h4><p className="mt-1 text-compact text-content-secondary">Đơn giá: {formatVnd(item.unitPriceSnapshot)}</p></div><StatusBadge entity="order-item" status={item.status} /></div><dl className="mt-3 grid grid-cols-2 gap-3 border-t border-border pt-3"><div><dt className="text-caption text-content-secondary">Số lượng</dt><dd className="mt-1 font-medium text-content">{item.quantity}</dd></div><div><dt className="text-caption text-content-secondary">Trạng thái bếp</dt><dd className="mt-1"><StatusBadge entity="order-item" status={item.status} /></dd></div></dl></li>)}</ul>}
+          </section>
         </div>
       )}
     </Modal>
@@ -146,6 +202,7 @@ export function WaiterTableBoardPage() {
   const toast = useToast()
   const [activeFilter, setActiveFilter] = useState<TableFilter>('ALL')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [hasSessionBackgroundRefreshError, setHasSessionBackgroundRefreshError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSessionLoading, setIsSessionLoading] = useState(false)
   const [openingTableId, setOpeningTableId] = useState<string | null>(null)
@@ -155,7 +212,10 @@ export function WaiterTableBoardPage() {
   const [sessionTable, setSessionTable] = useState<SessionTable | null>(null)
   const [tableToOpen, setTableToOpen] = useState<WaiterTable | null>(null)
   const [tables, setTables] = useState<WaiterTable[]>([])
+  const sessionAbortControllerRef = useRef<AbortController | null>(null)
+  const sessionRequestInFlightRef = useRef(false)
   const sessionRequestId = useRef(0)
+  const sessionTableRef = useRef<SessionTable | null>(null)
 
   useEffect(() => {
     let isCurrent = true
@@ -178,34 +238,87 @@ export function WaiterTableBoardPage() {
   const filteredTables = useMemo(() => tables.filter(table => matchesFilter(table, activeFilter)), [activeFilter, tables])
   const filterCounts = useMemo(() => new Map(filterOptions.map(filter => [filter.id, tables.filter(table => matchesFilter(table, filter.id)).length])), [tables])
   function reloadTables() { setReloadKey(key => key + 1) }
-  function closeSessionModal() {
+
+  function abortSessionRequest() {
     sessionRequestId.current += 1
-    setSessionDetail(null); setSessionErrorMessage(null); setSessionTable(null); setIsSessionLoading(false)
+    sessionAbortControllerRef.current?.abort()
+    sessionAbortControllerRef.current = null
+    sessionRequestInFlightRef.current = false
   }
-  async function loadSession(table: SessionTable) {
+
+  function closeSessionModal() {
+    abortSessionRequest()
+    sessionTableRef.current = null
+    setHasSessionBackgroundRefreshError(false); setSessionDetail(null); setSessionErrorMessage(null); setSessionTable(null); setIsSessionLoading(false)
+  }
+
+  async function loadSession(table: SessionTable, refreshMode: SessionRefreshMode = 'initial') {
+    const isNewTable = sessionTableRef.current?.id !== table.id
+    if (sessionRequestInFlightRef.current) {
+      if (!isNewTable) return
+      abortSessionRequest()
+    }
+
+    const isInitialLoad = refreshMode === 'initial' || isNewTable
     const requestId = sessionRequestId.current + 1
+    const abortController = new AbortController()
     sessionRequestId.current = requestId
-    setSessionTable(table); setSessionDetail(null); setSessionErrorMessage(null); setIsSessionLoading(true)
+    sessionAbortControllerRef.current = abortController
+    sessionRequestInFlightRef.current = true
+    sessionTableRef.current = table
+
+    if (isInitialLoad) {
+      setSessionTable(table); setSessionDetail(null); setSessionErrorMessage(null); setHasSessionBackgroundRefreshError(false); setIsSessionLoading(true)
+    }
+
     try {
-      const result = await getWaiterActiveTableSession(table.id)
-      if (sessionRequestId.current === requestId) setSessionDetail(result)
+      const result = await getWaiterActiveTableSession(table.id, abortController.signal)
+      if (sessionRequestId.current !== requestId || sessionTableRef.current?.id !== table.id) return
+
+      setSessionDetail(result); setSessionErrorMessage(null); setHasSessionBackgroundRefreshError(false)
     } catch (error) {
-      if (sessionRequestId.current === requestId) {
-        setSessionErrorMessage(getSessionErrorMessage(error))
-        if (getApiErrorCode(error) === 'ACTIVE_TABLE_SESSION_NOT_FOUND') reloadTables()
+      if (abortController.signal.aborted || sessionRequestId.current !== requestId || sessionTableRef.current?.id !== table.id) return
+
+      if (isAuthoritativeSessionError(error)) {
+        setSessionDetail(null); setSessionErrorMessage(getSessionErrorMessage(error)); setHasSessionBackgroundRefreshError(false)
+        reloadTables()
+      } else if (isInitialLoad) {
+        setSessionDetail(null); setSessionErrorMessage(getSessionErrorMessage(error)); setHasSessionBackgroundRefreshError(false)
+      } else {
+        setHasSessionBackgroundRefreshError(true)
       }
     } finally {
-      if (sessionRequestId.current === requestId) setIsSessionLoading(false)
+      if (sessionRequestId.current === requestId) {
+        sessionAbortControllerRef.current = null
+        sessionRequestInFlightRef.current = false
+        if (isInitialLoad) setIsSessionLoading(false)
+      }
     }
   }
+
+  useEffect(() => {
+    if (!sessionTable || sessionErrorMessage) return
+
+    const tableId = sessionTable.id
+    const pollingTimer = window.setInterval(() => {
+      const currentTable = sessionTableRef.current
+      if (currentTable?.id === tableId) void loadSession(currentTable, 'background')
+    }, pollingIntervalMs)
+
+    return () => {
+      window.clearInterval(pollingTimer)
+      if (sessionTableRef.current?.id === tableId) abortSessionRequest()
+    }
+  }, [sessionErrorMessage, sessionTable?.id])
+
+  useEffect(() => () => abortSessionRequest(), [])
   async function handleOpenTable() {
     if (!tableToOpen || openingTableId) return
     const table = tableToOpen
     setOpeningTableId(table.id)
     try {
       const result = await openWaiterTable(table.id)
-      setSessionDetail(result)
-      setSessionErrorMessage(null); setSessionTable(result.table); setIsSessionLoading(false)
+      void loadSession(result.table)
       reloadTables()
       toast.success(`Đã mở Bàn ${result.table.number}.`)
     } catch (error) {
@@ -235,7 +348,7 @@ export function WaiterTableBoardPage() {
       {!isLoading && !errorMessage && tables.length > 0 && filteredTables.length === 0 && <EmptyState description="Không có bàn phù hợp với bộ lọc hiện tại." icon={TableProperties} title="Không tìm thấy bàn phù hợp" />}
       {!isLoading && !errorMessage && filteredTables.length > 0 && <ul aria-label="Danh sách bàn phục vụ" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{filteredTables.map(table => <li key={table.id}><TableCard onOpen={setTableToOpen} onViewSession={table => void loadSession(table)} openingTableId={openingTableId} table={table} /></li>)}</ul>}
       <ConfirmDialog confirmLabel="Mở bàn" description={tableToOpen ? `Bàn ${tableToOpen.number} sẽ bắt đầu một phiên phục vụ mới.` : ''} isOpen={Boolean(tableToOpen)} onClose={() => setTableToOpen(null)} onConfirm={handleOpenTable} onError={error => { setTableToOpen(null); toast.error(getOpenTableErrorMessage(error)) }} title={tableToOpen ? `Mở Bàn ${tableToOpen.number}?` : 'Mở bàn'} />
-      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} isLoading={isSessionLoading} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable)} table={sessionTable} />
+      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} hasBackgroundRefreshError={hasSessionBackgroundRefreshError} isLoading={isSessionLoading} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable, sessionDetail ? 'background' : 'initial')} table={sessionTable} />
     </div>
   )
 }
