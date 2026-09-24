@@ -11,6 +11,9 @@ import { formatVnd } from '../../utils/format-vnd'
 type TableFilter = 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'PAYMENT_REQUESTED'
 type SessionTable = Pick<WaiterTable, 'id' | 'number'> | OpenWaiterTableResult['table']
 type SessionDetail = WaiterActiveTableSession
+type SessionRefreshMode = 'background' | 'initial'
+
+const pollingIntervalMs = 10_000
 
 const filterOptions: { id: TableFilter; label: string }[] = [
   { id: 'ALL', label: 'Tất cả' },
@@ -69,6 +72,18 @@ function formatOpenedAt(openedAt: string): string {
 
 function getShortOrderId(orderId: string): string {
   return `#${orderId.slice(-6).toUpperCase()}`
+}
+
+function isAuthoritativeSessionError(error: unknown): boolean {
+  return [
+    'ACTIVE_TABLE_SESSION_INCONSISTENT',
+    'ACTIVE_TABLE_SESSION_NOT_FOUND',
+    'CURRENT_ORDER_NOT_FOUND',
+    'INVALID_OBJECT_ID',
+    'TABLE_INACTIVE',
+    'TABLE_NOT_FOUND',
+    'TABLE_NOT_OCCUPIED',
+  ].includes(getApiErrorCode(error) ?? '')
 }
 
 function isOpenEligible(table: WaiterTable): boolean {
@@ -134,9 +149,10 @@ function TableCard({ onOpen, onViewSession, openingTableId, table }: {
   )
 }
 
-function SessionModal({ detail, errorMessage, isLoading, onClose, onCopy, onRetry, table }: {
+function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isLoading, onClose, onCopy, onRetry, table }: {
   detail: SessionDetail | null
   errorMessage: string | null
+  hasBackgroundRefreshError: boolean
   isLoading: boolean
   onClose: () => void
   onCopy: (joinCode: number) => void
@@ -149,6 +165,7 @@ function SessionModal({ detail, errorMessage, isLoading, onClose, onCopy, onRetr
       {!isLoading && errorMessage && <ErrorState description={errorMessage} onRetry={onRetry} title="Không thể tải phiên phục vụ" />}
       {!isLoading && !errorMessage && detail && (
         <div className="space-y-6">
+          {hasBackgroundRefreshError && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Không thể cập nhật chi tiết bàn. Dữ liệu gần nhất vẫn đang được hiển thị.</p>}
           <div aria-label={`Thông tin Bàn ${detail.table.number}`} className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface-muted p-4">
             <div><p className="text-compact text-content-secondary">Bàn</p><p className="mt-1 text-subsection text-content">Bàn {detail.table.number}</p></div>
             <div aria-label="Trạng thái bàn" className="flex flex-wrap gap-2"><Badge variant="info">Phiên hoạt động</Badge><StatusBadge entity="table" status={detail.table.status} /></div>
@@ -185,6 +202,7 @@ export function WaiterTableBoardPage() {
   const toast = useToast()
   const [activeFilter, setActiveFilter] = useState<TableFilter>('ALL')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [hasSessionBackgroundRefreshError, setHasSessionBackgroundRefreshError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSessionLoading, setIsSessionLoading] = useState(false)
   const [openingTableId, setOpeningTableId] = useState<string | null>(null)
@@ -194,7 +212,10 @@ export function WaiterTableBoardPage() {
   const [sessionTable, setSessionTable] = useState<SessionTable | null>(null)
   const [tableToOpen, setTableToOpen] = useState<WaiterTable | null>(null)
   const [tables, setTables] = useState<WaiterTable[]>([])
+  const sessionAbortControllerRef = useRef<AbortController | null>(null)
+  const sessionRequestInFlightRef = useRef(false)
   const sessionRequestId = useRef(0)
+  const sessionTableRef = useRef<SessionTable | null>(null)
 
   useEffect(() => {
     let isCurrent = true
@@ -217,26 +238,80 @@ export function WaiterTableBoardPage() {
   const filteredTables = useMemo(() => tables.filter(table => matchesFilter(table, activeFilter)), [activeFilter, tables])
   const filterCounts = useMemo(() => new Map(filterOptions.map(filter => [filter.id, tables.filter(table => matchesFilter(table, filter.id)).length])), [tables])
   function reloadTables() { setReloadKey(key => key + 1) }
-  function closeSessionModal() {
+
+  function abortSessionRequest() {
     sessionRequestId.current += 1
-    setSessionDetail(null); setSessionErrorMessage(null); setSessionTable(null); setIsSessionLoading(false)
+    sessionAbortControllerRef.current?.abort()
+    sessionAbortControllerRef.current = null
+    sessionRequestInFlightRef.current = false
   }
-  async function loadSession(table: SessionTable) {
+
+  function closeSessionModal() {
+    abortSessionRequest()
+    sessionTableRef.current = null
+    setHasSessionBackgroundRefreshError(false); setSessionDetail(null); setSessionErrorMessage(null); setSessionTable(null); setIsSessionLoading(false)
+  }
+
+  async function loadSession(table: SessionTable, refreshMode: SessionRefreshMode = 'initial') {
+    const isNewTable = sessionTableRef.current?.id !== table.id
+    if (sessionRequestInFlightRef.current) {
+      if (!isNewTable) return
+      abortSessionRequest()
+    }
+
+    const isInitialLoad = refreshMode === 'initial' || isNewTable
     const requestId = sessionRequestId.current + 1
+    const abortController = new AbortController()
     sessionRequestId.current = requestId
-    setSessionTable(table); setSessionDetail(null); setSessionErrorMessage(null); setIsSessionLoading(true)
+    sessionAbortControllerRef.current = abortController
+    sessionRequestInFlightRef.current = true
+    sessionTableRef.current = table
+
+    if (isInitialLoad) {
+      setSessionTable(table); setSessionDetail(null); setSessionErrorMessage(null); setHasSessionBackgroundRefreshError(false); setIsSessionLoading(true)
+    }
+
     try {
-      const result = await getWaiterActiveTableSession(table.id)
-      if (sessionRequestId.current === requestId) setSessionDetail(result)
+      const result = await getWaiterActiveTableSession(table.id, abortController.signal)
+      if (sessionRequestId.current !== requestId || sessionTableRef.current?.id !== table.id) return
+
+      setSessionDetail(result); setSessionErrorMessage(null); setHasSessionBackgroundRefreshError(false)
     } catch (error) {
-      if (sessionRequestId.current === requestId) {
-        setSessionErrorMessage(getSessionErrorMessage(error))
-        if (['ACTIVE_TABLE_SESSION_NOT_FOUND', 'ACTIVE_TABLE_SESSION_INCONSISTENT', 'CURRENT_ORDER_NOT_FOUND', 'TABLE_INACTIVE', 'TABLE_NOT_OCCUPIED'].includes(getApiErrorCode(error) ?? '')) reloadTables()
+      if (abortController.signal.aborted || sessionRequestId.current !== requestId || sessionTableRef.current?.id !== table.id) return
+
+      if (isAuthoritativeSessionError(error)) {
+        setSessionDetail(null); setSessionErrorMessage(getSessionErrorMessage(error)); setHasSessionBackgroundRefreshError(false)
+        reloadTables()
+      } else if (isInitialLoad) {
+        setSessionDetail(null); setSessionErrorMessage(getSessionErrorMessage(error)); setHasSessionBackgroundRefreshError(false)
+      } else {
+        setHasSessionBackgroundRefreshError(true)
       }
     } finally {
-      if (sessionRequestId.current === requestId) setIsSessionLoading(false)
+      if (sessionRequestId.current === requestId) {
+        sessionAbortControllerRef.current = null
+        sessionRequestInFlightRef.current = false
+        if (isInitialLoad) setIsSessionLoading(false)
+      }
     }
   }
+
+  useEffect(() => {
+    if (!sessionTable || sessionErrorMessage) return
+
+    const tableId = sessionTable.id
+    const pollingTimer = window.setInterval(() => {
+      const currentTable = sessionTableRef.current
+      if (currentTable?.id === tableId) void loadSession(currentTable, 'background')
+    }, pollingIntervalMs)
+
+    return () => {
+      window.clearInterval(pollingTimer)
+      if (sessionTableRef.current?.id === tableId) abortSessionRequest()
+    }
+  }, [sessionErrorMessage, sessionTable?.id])
+
+  useEffect(() => () => abortSessionRequest(), [])
   async function handleOpenTable() {
     if (!tableToOpen || openingTableId) return
     const table = tableToOpen
@@ -273,7 +348,7 @@ export function WaiterTableBoardPage() {
       {!isLoading && !errorMessage && tables.length > 0 && filteredTables.length === 0 && <EmptyState description="Không có bàn phù hợp với bộ lọc hiện tại." icon={TableProperties} title="Không tìm thấy bàn phù hợp" />}
       {!isLoading && !errorMessage && filteredTables.length > 0 && <ul aria-label="Danh sách bàn phục vụ" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{filteredTables.map(table => <li key={table.id}><TableCard onOpen={setTableToOpen} onViewSession={table => void loadSession(table)} openingTableId={openingTableId} table={table} /></li>)}</ul>}
       <ConfirmDialog confirmLabel="Mở bàn" description={tableToOpen ? `Bàn ${tableToOpen.number} sẽ bắt đầu một phiên phục vụ mới.` : ''} isOpen={Boolean(tableToOpen)} onClose={() => setTableToOpen(null)} onConfirm={handleOpenTable} onError={error => { setTableToOpen(null); toast.error(getOpenTableErrorMessage(error)) }} title={tableToOpen ? `Mở Bàn ${tableToOpen.number}?` : 'Mở bàn'} />
-      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} isLoading={isSessionLoading} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable)} table={sessionTable} />
+      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} hasBackgroundRefreshError={hasSessionBackgroundRefreshError} isLoading={isSessionLoading} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable, sessionDetail ? 'background' : 'initial')} table={sessionTable} />
     </div>
   )
 }

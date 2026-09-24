@@ -16,7 +16,10 @@ export async function openWaiterTable(tableId: string): Promise<OpenWaiterTableR
   return response.data.data
 }
 
-export async function getWaiterActiveTableSession(tableId: string): Promise<WaiterActiveTableSession> {
-  const response = await api.get<ApiSuccessResponse<{ tableSession: WaiterActiveTableSession }>>(`/waiter/tables/${tableId}/session`)
+export async function getWaiterActiveTableSession(
+  tableId: string,
+  signal?: AbortSignal,
+): Promise<WaiterActiveTableSession> {
+  const response = await api.get<ApiSuccessResponse<{ tableSession: WaiterActiveTableSession }>>(`/waiter/tables/${tableId}/session`, { signal })
   return response.data.data.tableSession
 }
