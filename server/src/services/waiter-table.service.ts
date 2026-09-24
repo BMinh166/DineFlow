@@ -4,6 +4,7 @@ import mongoose, { type ClientSession } from 'mongoose'
 import { Order } from '../models/order.js'
 import { Table } from '../models/table.js'
 import { TableSession } from '../models/table-session.js'
+import type { OrderItemStatus } from '../types/order-item-status.js'
 import type { OrderStatus } from '../types/order-status.js'
 import type { TableSessionStatus } from '../types/table-session-status.js'
 import type { TableStatus } from '../types/table-status.js'
@@ -29,6 +30,24 @@ export interface WaiterActiveTableSessionDto {
     id: string
     status: TableSessionStatus
     joinCode: number
+    openedAt: Date
+    openedBy: {
+      id: string
+      name: string
+    }
+  }
+  order: {
+    id: string
+    status: OrderStatus
+    total: number
+    itemCount: number
+    items: Array<{
+      id: string
+      dishNameSnapshot: string
+      unitPriceSnapshot: number
+      quantity: number
+      status: OrderItemStatus
+    }>
   }
 }
 
@@ -71,6 +90,25 @@ type ActiveSessionForDetail = {
   _id: { toString(): string }
   status: TableSessionStatus
   joinCode: number
+  openedAt: Date
+  openedBy: {
+    _id: { toString(): string }
+    name: string
+  } | null
+  currentOrderId?: { toString(): string }
+}
+
+type CurrentOrderForDetail = {
+  _id: { toString(): string }
+  status: OrderStatus
+  total: number
+  items: Array<{
+    _id: { toString(): string }
+    dishNameSnapshot: string
+    unitPriceSnapshot: number
+    quantity: number
+    status: OrderItemStatus
+  }>
 }
 
 type OpenedTable = {
@@ -106,6 +144,14 @@ function tableOccupiedError(): Conflict {
 
 function tableOpenConflictError(): Conflict {
   return new Conflict('Table is no longer available to open.', 'TABLE_OPEN_CONFLICT')
+}
+
+function currentOrderNotFoundError(): Conflict {
+  return new Conflict('Current order is unavailable.', 'CURRENT_ORDER_NOT_FOUND')
+}
+
+function tableSessionInconsistentError(): Conflict {
+  return new Conflict('Active table session is inconsistent.', 'ACTIVE_TABLE_SESSION_INCONSISTENT')
 }
 
 function isDuplicateKeyError(error: unknown): boolean {
@@ -279,14 +325,41 @@ export async function getWaiterActiveTableSession(
     throw new NotFound('Table not found.', 'TABLE_NOT_FOUND')
   }
 
+  if (!table.active) {
+    throw new NotFound('Table is inactive.', 'TABLE_INACTIVE')
+  }
+
+  if (table.status !== 'OCCUPIED') {
+    throw new Conflict('Table is not occupied.', 'TABLE_NOT_OCCUPIED')
+  }
+
   const session = await TableSession.findOne({ tableId: table._id, status: 'ACTIVE' })
-    .select('_id status joinCode')
+    .select('_id status joinCode openedAt openedBy currentOrderId')
+    .populate('openedBy', '_id name')
 
   if (!session) {
     throw new NotFound('Active table session not found.', 'ACTIVE_TABLE_SESSION_NOT_FOUND')
   }
 
   const activeSession = session as unknown as ActiveSessionForDetail
+  if (!activeSession.openedBy) {
+    throw tableSessionInconsistentError()
+  }
+
+  if (!activeSession.currentOrderId) {
+    throw currentOrderNotFoundError()
+  }
+
+  const order = await Order.findOne({
+    _id: activeSession.currentOrderId,
+    tableSessionId: activeSession._id,
+  }).select('_id status total items')
+
+  if (!order) {
+    throw currentOrderNotFoundError()
+  }
+
+  const currentOrder = order as unknown as CurrentOrderForDetail
   return {
     table: {
       id: table._id.toString(),
@@ -298,6 +371,24 @@ export async function getWaiterActiveTableSession(
       id: activeSession._id.toString(),
       status: activeSession.status,
       joinCode: activeSession.joinCode,
+      openedAt: activeSession.openedAt,
+      openedBy: {
+        id: activeSession.openedBy._id.toString(),
+        name: activeSession.openedBy.name,
+      },
+    },
+    order: {
+      id: currentOrder._id.toString(),
+      status: currentOrder.status,
+      total: currentOrder.total,
+      itemCount: currentOrder.items.length,
+      items: currentOrder.items.map(item => ({
+        id: item._id.toString(),
+        dishNameSnapshot: item.dishNameSnapshot,
+        unitPriceSnapshot: item.unitPriceSnapshot,
+        quantity: item.quantity,
+        status: item.status,
+      })),
     },
   }
 }
