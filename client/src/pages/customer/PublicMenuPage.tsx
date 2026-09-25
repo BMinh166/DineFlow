@@ -133,8 +133,12 @@ export function PublicMenuPage() {
     }
 
     let isCurrent = true
+    let requestInFlight = false
     const abortController = new AbortController()
     async function refreshOrderStatus() {
+      if (requestInFlight) return
+      requestInFlight = true
+
       try {
         const order = await getCustomerCurrentOrder(abortController.signal)
         if (!isCurrent) return
@@ -142,6 +146,8 @@ export function PublicMenuPage() {
         setIsLockRecoveryPending(false)
       } catch {
         // Keep a known lock in place until an authoritative response can replace it.
+      } finally {
+        requestInFlight = false
       }
     }
 
