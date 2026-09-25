@@ -1,6 +1,8 @@
 import { randomInt } from 'node:crypto'
-import mongoose, { type ClientSession } from 'mongoose'
+import mongoose, { Types, type ClientSession } from 'mongoose'
 
+import { Category } from '../models/category.js'
+import { Dish } from '../models/dish.js'
 import { Order } from '../models/order.js'
 import { Table } from '../models/table.js'
 import { TableSession } from '../models/table-session.js'
@@ -9,6 +11,7 @@ import type { OrderStatus } from '../types/order-status.js'
 import type { TableSessionStatus } from '../types/table-session-status.js'
 import type { TableStatus } from '../types/table-status.js'
 import { Conflict, NotFound } from '../utils/app-error.js'
+import type { AddCustomerOrderItemsRequest } from '../validators/customer-order.validator.js'
 
 export interface WaiterTableDto {
   id: string
@@ -66,6 +69,22 @@ export interface OpenWaiterTableResult {
     id: string
     status: 'OPEN'
   }
+}
+
+export interface WaiterAddOrderItemsResult {
+  order: {
+    id: string
+    status: 'OPEN'
+    total: number
+  }
+}
+
+type NewOrderItem = {
+  dishId: Types.ObjectId
+  dishNameSnapshot: string
+  quantity: number
+  status: 'PENDING'
+  unitPriceSnapshot: number
 }
 
 type TableForDto = {
@@ -152,6 +171,26 @@ function currentOrderNotFoundError(): Conflict {
 
 function tableSessionInconsistentError(): Conflict {
   return new Conflict('Active table session is inconsistent.', 'ACTIVE_TABLE_SESSION_INCONSISTENT')
+}
+
+function tableNotOccupiedError(): Conflict {
+  return new Conflict('Table is not occupied.', 'TABLE_NOT_OCCUPIED')
+}
+
+function orderNotOpenError(status: string): Conflict {
+  if (status === 'PAYMENT_REQUESTED') {
+    return new Conflict('Order is awaiting payment.', 'ORDER_PAYMENT_REQUESTED')
+  }
+
+  if (status === 'CLOSED') {
+    return new Conflict('Order is closed.', 'ORDER_CLOSED')
+  }
+
+  return new Conflict('Order is not open.', 'ORDER_NOT_OPEN')
+}
+
+function invalidStoredPriceError(): Conflict {
+  return new Conflict('Dish price is invalid.', 'DISH_PRICE_INVALID')
 }
 
 function isDuplicateKeyError(error: unknown): boolean {
@@ -409,6 +448,111 @@ export async function openWaiterTable(
     }
 
     throw error
+  } finally {
+    await transactionSession.endSession()
+  }
+}
+
+export async function addWaiterOrderItems(
+  tableId: string,
+  { items }: AddCustomerOrderItemsRequest,
+): Promise<WaiterAddOrderItemsResult> {
+  const transactionSession = await mongoose.startSession()
+
+  try {
+    return await transactionSession.withTransaction(async () => {
+      const table = await Table.findById(tableId)
+        .select('_id status active')
+        .session(transactionSession)
+
+      if (!table) throw new NotFound('Table not found.', 'TABLE_NOT_FOUND')
+      if (!table.active) throw tableInactiveError()
+      if (table.status !== 'OCCUPIED') throw tableNotOccupiedError()
+
+      const tableSession = await TableSession.findOne({
+        tableId: table._id,
+        status: 'ACTIVE',
+      })
+        .select('_id currentOrderId')
+        .session(transactionSession)
+
+      if (!tableSession) {
+        throw new NotFound('Active table session not found.', 'ACTIVE_TABLE_SESSION_NOT_FOUND')
+      }
+      if (!tableSession.currentOrderId) throw currentOrderNotFoundError()
+
+      const order = await Order.findOne({
+        _id: tableSession.currentOrderId,
+        tableSessionId: tableSession._id,
+      })
+        .select('_id status')
+        .session(transactionSession)
+
+      if (!order) throw currentOrderNotFoundError()
+      if (order.status !== 'OPEN') throw orderNotOpenError(order.status)
+
+      const dishIds = items.map(item => item.dishId)
+      const dishes = await Dish.find({ _id: { $in: dishIds } })
+        .select('_id categoryId name price isActive isAvailable')
+        .session(transactionSession)
+      const dishesById = new Map(dishes.map(dish => [dish._id.toString(), dish]))
+
+      const activeCategories = await Category.find({
+        _id: { $in: dishes.map(dish => dish.categoryId) },
+        active: true,
+      })
+        .select('_id')
+        .session(transactionSession)
+      const activeCategoryIds = new Set(activeCategories.map(category => category._id.toString()))
+
+      const newItems: NewOrderItem[] = items.map(item => {
+        const dish = dishesById.get(item.dishId)
+        if (!dish) throw new NotFound('Dish not found.', 'DISH_NOT_FOUND')
+        if (!dish.isActive) throw new Conflict('Dish is inactive.', 'DISH_INACTIVE')
+        if (!dish.isAvailable) throw new Conflict('Dish is unavailable.', 'DISH_UNAVAILABLE')
+        if (!activeCategoryIds.has(dish.categoryId.toString())) {
+          throw new Conflict('Dish category is inactive.', 'DISH_CATEGORY_INACTIVE')
+        }
+        if (!Number.isSafeInteger(dish.price) || dish.price < 0) throw invalidStoredPriceError()
+
+        return {
+          dishId: dish._id,
+          dishNameSnapshot: dish.name,
+          quantity: item.quantity,
+          status: 'PENDING',
+          unitPriceSnapshot: dish.price,
+        }
+      })
+
+      const addedTotal = newItems.reduce((total, item) => total + item.unitPriceSnapshot * item.quantity, 0)
+      if (!Number.isSafeInteger(addedTotal)) throw invalidStoredPriceError()
+
+      const updatedOrder = await Order.findOneAndUpdate(
+        {
+          _id: order._id,
+          tableSessionId: tableSession._id,
+          status: 'OPEN',
+        },
+        {
+          $inc: { total: addedTotal },
+          $push: { items: { $each: newItems } },
+        },
+        { new: true, session: transactionSession },
+      ).select('_id status total')
+
+      if (!updatedOrder) throw new Conflict('Order is no longer open.', 'ORDER_NOT_OPEN')
+      if (!Number.isSafeInteger(updatedOrder.total) || updatedOrder.total < 0) {
+        throw new Conflict('Order total is invalid.', 'ORDER_TOTAL_INVALID')
+      }
+
+      return {
+        order: {
+          id: updatedOrder._id.toString(),
+          status: 'OPEN',
+          total: updatedOrder.total,
+        },
+      }
+    })
   } finally {
     await transactionSession.endSession()
   }

@@ -23,3 +23,14 @@ export async function getWaiterActiveTableSession(
   const response = await api.get<ApiSuccessResponse<{ tableSession: WaiterActiveTableSession }>>(`/waiter/tables/${tableId}/session`, { signal })
   return response.data.data.tableSession
 }
+
+export async function addWaiterOrderItems(
+  tableId: string,
+  items: Array<{ dishId: string, quantity: number }>,
+): Promise<{ id: string, status: 'OPEN', total: number }> {
+  const response = await api.post<ApiSuccessResponse<{ order: { id: string, status: 'OPEN', total: number } }>>(
+    `/waiter/tables/${tableId}/items`,
+    { items },
+  )
+  return response.data.data.order
+}
