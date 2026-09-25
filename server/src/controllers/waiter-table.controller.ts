@@ -6,6 +6,7 @@ import {
   listWaiterTables,
   openWaiterTable,
 } from '../services/waiter-table.service.js'
+import { cancelWaiterPaymentRequest } from '../services/waiter-payment.service.js'
 import { successResponse } from '../utils/api-response.js'
 import type { AddCustomerOrderItemsRequest } from '../validators/customer-order.validator.js'
 
@@ -36,5 +37,10 @@ export const addWaiterOrderItemsController: RequestHandler = async (request, res
     getValidatedTableId(request.params),
     request.body as AddCustomerOrderItemsRequest,
   )
+  response.status(200).json(successResponse(result))
+}
+
+export const cancelWaiterPaymentRequestController: RequestHandler = async (request, response) => {
+  const result = await cancelWaiterPaymentRequest(getValidatedTableId(request.params))
   response.status(200).json(successResponse(result))
 }
