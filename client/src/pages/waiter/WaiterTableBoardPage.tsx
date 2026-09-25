@@ -3,7 +3,7 @@ import axios from 'axios'
 import { Clipboard, RefreshCw, TableProperties } from 'lucide-react'
 
 import { Badge, Button, Card, ConfirmDialog, EmptyState, ErrorState, Modal, PageHeader, PageLoading, StatusBadge, useToast } from '../../components/ui'
-import { cancelWaiterPaymentRequest, getWaiterActiveTableSession, getWaiterTables, openWaiterTable } from '../../services/waiter-table-api'
+import { cancelWaiterPaymentRequest, confirmWaiterPayment, getWaiterActiveTableSession, getWaiterTables, openWaiterTable } from '../../services/waiter-table-api'
 import type { OpenWaiterTableResult, WaiterActiveTableSession, WaiterTable } from '../../types/table'
 import { getApiErrorMessage } from '../../utils/api-error'
 import { formatVnd } from '../../utils/format-vnd'
@@ -73,6 +73,32 @@ function getCancelPaymentRequestErrorMessage(error: unknown): string {
     case 'CURRENT_ORDER_NOT_FOUND': return 'Trạng thái bàn hoặc đơn đã thay đổi. Chi tiết bàn đang được tải lại.'
     default: return getApiErrorMessage(error, 'Không thể hủy yêu cầu thanh toán. Chi tiết bàn đang được tải lại.')
   }
+}
+
+function getConfirmPaymentErrorMessage(error: unknown): string {
+  switch (getApiErrorCode(error)) {
+    case 'ORDER_ITEMS_NOT_COMPLETED': return 'Tất cả món phải hoàn thành trước khi xác nhận thanh toán.'
+    case 'ORDER_NOT_PAYMENT_REQUESTED': return 'Trạng thái thanh toán đã thay đổi. Chi tiết bàn đang được tải lại.'
+    case 'ORDER_CLOSED': return 'Đơn đã được đóng. Danh sách bàn đang được tải lại.'
+    case 'PAYMENT_CONFIRMATION_CONFLICT': return 'Trạng thái thanh toán đã thay đổi trong lúc xác nhận. Dữ liệu đang được tải lại.'
+    case 'TABLE_NOT_FOUND':
+    case 'TABLE_INACTIVE':
+    case 'TABLE_NOT_OCCUPIED':
+    case 'ACTIVE_TABLE_SESSION_NOT_FOUND':
+    case 'CURRENT_ORDER_NOT_FOUND': return 'Trạng thái phiên phục vụ đã thay đổi. Dữ liệu đang được tải lại.'
+    default: return getApiErrorMessage(error, 'Không thể xác nhận thanh toán. Dữ liệu đang được tải lại.')
+  }
+}
+
+function shouldCloseStaleSessionAfterPaymentError(error: unknown): boolean {
+  return [
+    'ACTIVE_TABLE_SESSION_NOT_FOUND',
+    'CURRENT_ORDER_NOT_FOUND',
+    'ORDER_CLOSED',
+    'TABLE_INACTIVE',
+    'TABLE_NOT_FOUND',
+    'TABLE_NOT_OCCUPIED',
+  ].includes(getApiErrorCode(error) ?? '')
 }
 
 function formatOpenedAt(openedAt: string): string {
@@ -164,21 +190,30 @@ function TableCard({ onOpen, onViewSession, openingTableId, table }: {
   )
 }
 
-function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isCancelPaymentRequestPending, isLoading, onCancelPaymentRequest, onClose, onCopy, onRetry, onStartAssistedOrdering, table }: {
+function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isCancelPaymentRequestPending, isConfirmPaymentPending, isLoading, onCancelPaymentRequest, onClose, onConfirmPayment, onCopy, onRetry, onStartAssistedOrdering, table }: {
   detail: SessionDetail | null
   errorMessage: string | null
   hasBackgroundRefreshError: boolean
   isCancelPaymentRequestPending: boolean
+  isConfirmPaymentPending: boolean
   isLoading: boolean
   onCancelPaymentRequest: () => void
   onClose: () => void
+  onConfirmPayment: () => void
   onCopy: (joinCode: number) => void
   onRetry: () => void
   onStartAssistedOrdering: () => void
   table: SessionTable | null
 }) {
+  const isPaymentRequested = detail?.table.active === true
+    && detail.table.status === 'OCCUPIED'
+    && detail.session.status === 'ACTIVE'
+    && detail.order.status === 'PAYMENT_REQUESTED'
+  const areAllOrderItemsCompleted = detail?.order.items.every(item => item.status === 'COMPLETED') ?? false
+  const isPaymentMutationPending = isCancelPaymentRequestPending || isConfirmPaymentPending
+
   return (
-    <Modal className="max-w-2xl" footer={detail && <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button onClick={onRetry} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button><Button onClick={() => onCopy(detail.session.joinCode)} variant="secondary"><Clipboard aria-hidden="true" className="size-4" />Sao chép mã</Button>{detail.table.active && detail.table.status === 'OCCUPIED' && detail.session.status === 'ACTIVE' && detail.order.status === 'PAYMENT_REQUESTED' && <Button disabled={isCancelPaymentRequestPending} loading={isCancelPaymentRequestPending} onClick={onCancelPaymentRequest} variant="secondary">Hủy yêu cầu thanh toán</Button>}{detail.table.active && detail.table.status === 'OCCUPIED' && detail.session.status === 'ACTIVE' && detail.order.status === 'OPEN' && <Button onClick={onStartAssistedOrdering}>Hỗ trợ thêm món</Button>}</div>} isOpen={Boolean(table)} onClose={onClose} title={table ? `Chi tiết Bàn ${table.number}` : 'Chi tiết bàn'}>
+    <Modal className="max-w-2xl" footer={detail && <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button onClick={onRetry} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button><Button onClick={() => onCopy(detail.session.joinCode)} variant="secondary"><Clipboard aria-hidden="true" className="size-4" />Sao chép mã</Button>{isPaymentRequested && <Button disabled={isPaymentMutationPending} loading={isCancelPaymentRequestPending} onClick={onCancelPaymentRequest} variant="secondary">Hủy yêu cầu thanh toán</Button>}{isPaymentRequested && <Button disabled={isPaymentMutationPending || !areAllOrderItemsCompleted} loading={isConfirmPaymentPending} onClick={onConfirmPayment} variant="danger">Xác nhận thanh toán</Button>}{detail.table.active && detail.table.status === 'OCCUPIED' && detail.session.status === 'ACTIVE' && detail.order.status === 'OPEN' && <Button onClick={onStartAssistedOrdering}>Hỗ trợ thêm món</Button>}</div>} isOpen={Boolean(table)} onClose={onClose} title={table ? `Chi tiết Bàn ${table.number}` : 'Chi tiết bàn'}>
       {isLoading && <PageLoading label="Đang tải phiên phục vụ" />}
       {!isLoading && errorMessage && <ErrorState description={errorMessage} onRetry={onRetry} title="Không thể tải phiên phục vụ" />}
       {!isLoading && !errorMessage && detail && (
@@ -204,6 +239,7 @@ function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isCance
               <div><dt className="text-compact text-content-secondary">Tổng cộng</dt><dd className="mt-1 text-price text-content">{formatVnd(detail.order.total)}</dd></div>
               <div><dt className="text-compact text-content-secondary">Số món</dt><dd className="mt-1 text-subsection text-content">{detail.order.itemCount}</dd></div>
             </dl>
+            {isPaymentRequested && !areAllOrderItemsCompleted && <p className="mt-3 rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Tất cả món phải hoàn thành trước khi xác nhận thanh toán.</p>}
           </section>
 
           <section aria-labelledby="waiter-order-items-heading">
@@ -222,6 +258,8 @@ export function WaiterTableBoardPage() {
   const [isAssistedOrderingOpen, setIsAssistedOrderingOpen] = useState(false)
   const [isCancelPaymentRequestDialogOpen, setIsCancelPaymentRequestDialogOpen] = useState(false)
   const [isCancelPaymentRequestPending, setIsCancelPaymentRequestPending] = useState(false)
+  const [isConfirmPaymentDialogOpen, setIsConfirmPaymentDialogOpen] = useState(false)
+  const [isConfirmPaymentPending, setIsConfirmPaymentPending] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [hasTableBackgroundRefreshError, setHasTableBackgroundRefreshError] = useState(false)
   const [hasSessionBackgroundRefreshError, setHasSessionBackgroundRefreshError] = useState(false)
@@ -315,6 +353,7 @@ export function WaiterTableBoardPage() {
     sessionTableRef.current = null
     setIsAssistedOrderingOpen(false)
     setIsCancelPaymentRequestDialogOpen(false)
+    setIsConfirmPaymentDialogOpen(false)
     setHasSessionBackgroundRefreshError(false); setSessionDetail(null); setSessionErrorMessage(null); setSessionTable(null); setIsSessionLoading(false)
   }
 
@@ -410,7 +449,7 @@ export function WaiterTableBoardPage() {
   }
 
   async function handleCancelPaymentRequest() {
-    if (!sessionTable || !sessionDetail || sessionDetail.order.status !== 'PAYMENT_REQUESTED' || isCancelPaymentRequestPending) return
+    if (!sessionTable || !sessionDetail || sessionDetail.order.status !== 'PAYMENT_REQUESTED' || isCancelPaymentRequestPending || isConfirmPaymentPending) return
 
     const table = sessionTable
     setIsCancelPaymentRequestPending(true)
@@ -435,6 +474,33 @@ export function WaiterTableBoardPage() {
     toast.error(getCancelPaymentRequestErrorMessage(error))
   }
 
+  async function handleConfirmPayment() {
+    if (!sessionTable || !sessionDetail || sessionDetail.table.active !== true || sessionDetail.table.status !== 'OCCUPIED' || sessionDetail.session.status !== 'ACTIVE' || sessionDetail.order.status !== 'PAYMENT_REQUESTED' || sessionDetail.order.items.some(item => item.status !== 'COMPLETED') || isCancelPaymentRequestPending || isConfirmPaymentPending) return
+
+    const table = sessionTable
+    setIsConfirmPaymentPending(true)
+    try {
+      await confirmWaiterPayment(table.id)
+      closeSessionModal()
+      reloadTables()
+      toast.success('Đã xác nhận thanh toán. Bàn đã được giải phóng.')
+    } finally {
+      setIsConfirmPaymentPending(false)
+    }
+  }
+
+  function handleConfirmPaymentError(error: unknown) {
+    setIsConfirmPaymentDialogOpen(false)
+    if (shouldCloseStaleSessionAfterPaymentError(error)) {
+      closeSessionModal()
+    } else if (sessionTable) {
+      abortSessionRequest()
+      void loadSession(sessionTable, 'background')
+    }
+    reloadTables()
+    toast.error(getConfirmPaymentErrorMessage(error))
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader actions={<Button disabled={isLoading} onClick={reloadTables} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>} description="Theo dõi trạng thái vận hành bàn từ hệ thống." title="Danh sách bàn" />
@@ -446,8 +512,9 @@ export function WaiterTableBoardPage() {
       {!isLoading && !errorMessage && tables.length > 0 && filteredTables.length === 0 && <EmptyState description="Không có bàn phù hợp với bộ lọc hiện tại." icon={TableProperties} title="Không tìm thấy bàn phù hợp" />}
       {!isLoading && !errorMessage && filteredTables.length > 0 && <ul aria-label="Danh sách bàn phục vụ" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{filteredTables.map(table => <li key={table.id}><TableCard onOpen={setTableToOpen} onViewSession={table => void loadSession(table)} openingTableId={openingTableId} table={table} /></li>)}</ul>}
       <ConfirmDialog confirmLabel="Mở bàn" description={tableToOpen ? `Bàn ${tableToOpen.number} sẽ bắt đầu một phiên phục vụ mới.` : ''} isOpen={Boolean(tableToOpen)} onClose={() => setTableToOpen(null)} onConfirm={handleOpenTable} onError={error => { setTableToOpen(null); toast.error(getOpenTableErrorMessage(error)) }} title={tableToOpen ? `Mở Bàn ${tableToOpen.number}?` : 'Mở bàn'} />
-      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} hasBackgroundRefreshError={hasSessionBackgroundRefreshError} isCancelPaymentRequestPending={isCancelPaymentRequestPending} isLoading={isSessionLoading} onCancelPaymentRequest={() => setIsCancelPaymentRequestDialogOpen(true)} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable, sessionDetail ? 'background' : 'initial')} onStartAssistedOrdering={() => setIsAssistedOrderingOpen(true)} table={sessionTable} />
-      <ConfirmDialog cancelLabel="Giữ yêu cầu thanh toán" confirmLabel="Mở lại đơn" description="Thao tác này sẽ mở lại đơn để có thể gọi thêm món." isOpen={isCancelPaymentRequestDialogOpen && sessionDetail?.order.status === 'PAYMENT_REQUESTED'} onClose={() => setIsCancelPaymentRequestDialogOpen(false)} onConfirm={handleCancelPaymentRequest} onError={handleCancelPaymentRequestError} title="Cho phép gọi thêm món?" />
+      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} hasBackgroundRefreshError={hasSessionBackgroundRefreshError} isCancelPaymentRequestPending={isCancelPaymentRequestPending} isConfirmPaymentPending={isConfirmPaymentPending} isLoading={isSessionLoading} onCancelPaymentRequest={() => { if (!isConfirmPaymentPending) setIsCancelPaymentRequestDialogOpen(true) }} onClose={closeSessionModal} onConfirmPayment={() => { if (!isCancelPaymentRequestPending) setIsConfirmPaymentDialogOpen(true) }} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable, sessionDetail ? 'background' : 'initial')} onStartAssistedOrdering={() => setIsAssistedOrderingOpen(true)} table={sessionTable} />
+      <ConfirmDialog cancelLabel="Giữ yêu cầu thanh toán" confirmLabel="Mở lại đơn" description="Thao tác này sẽ mở lại đơn để có thể gọi thêm món." isOpen={isCancelPaymentRequestDialogOpen && !isConfirmPaymentPending && sessionDetail?.order.status === 'PAYMENT_REQUESTED'} onClose={() => setIsCancelPaymentRequestDialogOpen(false)} onConfirm={handleCancelPaymentRequest} onError={handleCancelPaymentRequestError} title="Cho phép gọi thêm món?" />
+      <ConfirmDialog cancelLabel="Chưa thanh toán" confirmLabel="Xác nhận thanh toán" description={sessionDetail ? `Bàn ${sessionDetail.table.number} • Tổng ${formatVnd(sessionDetail.order.total)}. Đơn sẽ được đóng, phiên phục vụ hiện tại sẽ kết thúc và bàn sẽ được giải phóng.` : ''} destructive isOpen={isConfirmPaymentDialogOpen && !isCancelPaymentRequestPending && sessionDetail?.table.active === true && sessionDetail.table.status === 'OCCUPIED' && sessionDetail.session.status === 'ACTIVE' && sessionDetail.order.status === 'PAYMENT_REQUESTED' && sessionDetail.order.items.every(item => item.status === 'COMPLETED')} onClose={() => setIsConfirmPaymentDialogOpen(false)} onConfirm={handleConfirmPayment} onError={handleConfirmPaymentError} title="Xác nhận đã thanh toán?" />
       <WaiterAssistedOrderingModal isOpen={isAssistedOrderingOpen} onAuthoritativeInvalidation={message => { setIsAssistedOrderingOpen(false); if (sessionTable) { abortSessionRequest(); void loadSession(sessionTable, 'initial') }; reloadTables(); toast.error(message) }} onClose={() => setIsAssistedOrderingOpen(false)} onSuccess={() => { setIsAssistedOrderingOpen(false); if (sessionTable) { abortSessionRequest(); void loadSession(sessionTable, 'initial') }; reloadTables(); toast.success('Đã thêm món vào đơn.'); }} table={sessionDetail ? { id: sessionDetail.table.id, number: sessionDetail.table.number } : null} />
     </div>
   )

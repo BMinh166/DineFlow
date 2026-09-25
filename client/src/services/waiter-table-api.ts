@@ -6,6 +6,21 @@ interface ApiSuccessResponse<T> {
   data: T
 }
 
+export interface ConfirmWaiterPaymentResult {
+  order: {
+    id: string
+    status: 'CLOSED'
+  }
+  session: {
+    id: string
+    status: 'CLOSED'
+  }
+  table: {
+    id: string
+    status: 'AVAILABLE'
+  }
+}
+
 export async function getWaiterTables(signal?: AbortSignal): Promise<WaiterTable[]> {
   const response = await api.get<ApiSuccessResponse<{ tables: WaiterTable[] }>>('/waiter/tables', { signal })
   return response.data.data.tables
@@ -42,4 +57,11 @@ export async function cancelWaiterPaymentRequest(
     `/waiter/tables/${tableId}/cancel-payment-request`,
   )
   return response.data.data.order
+}
+
+export async function confirmWaiterPayment(tableId: string): Promise<ConfirmWaiterPaymentResult> {
+  const response = await api.post<ApiSuccessResponse<ConfirmWaiterPaymentResult>>(
+    `/waiter/tables/${tableId}/confirm-payment`,
+  )
+  return response.data.data
 }
