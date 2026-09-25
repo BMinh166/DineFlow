@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { ClipboardList, RefreshCw } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
-import { Button, EmptyState, ErrorState, PageLoading, StatusBadge } from '../../components/ui'
+import { Button, ConfirmDialog, EmptyState, ErrorState, PageLoading, StatusBadge, useToast } from '../../components/ui'
 import { useCustomerSession } from '../../hooks/useCustomerSession'
-import { getCustomerCurrentOrder, getCustomerCurrentOrderErrorKind, type CustomerCurrentOrder } from '../../services/customer-order-api'
+import { getCustomerCurrentOrder, getCustomerCurrentOrderErrorKind, requestCustomerOrderPayment, type CustomerCurrentOrder } from '../../services/customer-order-api'
 import { formatVnd } from '../../utils/format-vnd'
 
 type CurrentOrderViewState = 'idle' | 'loading' | 'not-found' | 'error'
@@ -19,9 +19,11 @@ export function CustomerCurrentOrderPage() {
   const [viewState, setViewState] = useState<CurrentOrderViewState>('loading')
   const [reloadKey, setReloadKey] = useState(0)
   const [hasBackgroundRefreshError, setHasBackgroundRefreshError] = useState(false)
+  const [isPaymentRequestDialogOpen, setIsPaymentRequestDialogOpen] = useState(false)
   const loadedTableIdRef = useRef<string | null>(null)
   const isAuthorized = isAuthorizedForTable(tableId)
   const currentOrder = orderTableId === tableId ? order : null
+  const toast = useToast()
 
   useEffect(() => {
     let isCurrent = true
@@ -87,6 +89,13 @@ export function CustomerCurrentOrderPage() {
   }, [isAuthorized, reloadKey, status, tableId])
 
   const menuPath = `/table/${encodeURIComponent(tableId)}/menu`
+  const canAddItems = currentOrder?.status === 'OPEN'
+
+  async function handleRequestPayment() {
+    await requestCustomerOrderPayment()
+    setReloadKey(key => key + 1)
+    toast.success('Đã gửi yêu cầu thanh toán. Đơn hiện không thể gọi thêm món.')
+  }
 
   if (status === 'restoring') return <PageLoading label="Đang kiểm tra trạng thái vào bàn" />
 
@@ -116,8 +125,10 @@ export function CustomerCurrentOrderPage() {
 
       {hasBackgroundRefreshError && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Không thể cập nhật đơn hiện tại. Dữ liệu gần nhất vẫn đang được hiển thị.</p>}
 
+      {currentOrder.status === 'PAYMENT_REQUESTED' && <section className="rounded-card border border-warning bg-warning-soft p-4" role="status"><h2 className="text-card-title text-content">Đã yêu cầu thanh toán</h2><p className="mt-2 text-compact text-content-secondary">Đơn đã được khóa để gọi thêm món. Vui lòng chờ nhân viên hỗ trợ thanh toán.</p></section>}
+
       {currentOrder.items.length === 0 ? (
-        <EmptyState action={<Link className="inline-flex min-h-10 items-center justify-center rounded-control bg-brand px-4 py-2 text-label font-semibold text-on-primary transition-colors hover:bg-brand-hover" to={menuPath}>Gọi món</Link>} description="Bạn có thể chọn món từ thực đơn để bắt đầu." icon={ClipboardList} title="Đơn hiện tại chưa có món" />
+        <EmptyState action={canAddItems ? <Link className="inline-flex min-h-10 items-center justify-center rounded-control bg-brand px-4 py-2 text-label font-semibold text-on-primary transition-colors hover:bg-brand-hover" to={menuPath}>Gọi món</Link> : undefined} description={canAddItems ? 'Bạn có thể chọn món từ thực đơn để bắt đầu.' : 'Đơn hiện không thể nhận thêm món.'} icon={ClipboardList} title="Đơn hiện tại chưa có món" />
       ) : (
         <ul className="space-y-3" aria-label="Các món đã gọi">
           {currentOrder.items.map(item => (
@@ -141,9 +152,10 @@ export function CustomerCurrentOrderPage() {
       <section className="rounded-card border border-brand-border bg-brand-soft p-4 sm:p-5" aria-label="Tổng đơn hàng">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div><p className="text-label text-brand">Tổng cộng</p><p className="mt-1 text-price-lg text-content">{formatVnd(currentOrder.total)}</p></div>
-          <Link className="inline-flex min-h-10 items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-label font-semibold text-content transition-colors hover:bg-surface-muted" to={menuPath}>Gọi thêm món</Link>
+          <div className="flex flex-wrap gap-2">{canAddItems && <Link className="inline-flex min-h-10 items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-label font-semibold text-content transition-colors hover:bg-surface-muted" to={menuPath}>Gọi thêm món</Link>}{canAddItems && <Button onClick={() => setIsPaymentRequestDialogOpen(true)} variant="secondary">Yêu cầu thanh toán</Button>}</div>
         </div>
       </section>
+      <ConfirmDialog cancelLabel="Hủy" confirmLabel="Gửi yêu cầu" description="Sau khi gửi yêu cầu, đơn này sẽ được khóa và bạn sẽ không thể gọi thêm món." isOpen={isPaymentRequestDialogOpen} onClose={() => setIsPaymentRequestDialogOpen(false)} onConfirm={handleRequestPayment} onError={() => { setIsPaymentRequestDialogOpen(false); setReloadKey(key => key + 1); toast.error('Không thể xác nhận yêu cầu thanh toán. Đơn đang được tải lại.'); }} title="Yêu cầu thanh toán?" />
     </div>
   )
 }

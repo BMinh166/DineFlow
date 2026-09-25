@@ -11,6 +11,7 @@ import { CustomerCartDrawer } from './CustomerCartDrawer'
 import { JoinTableCard } from './JoinTableCard'
 import { useCustomerCart } from '../../hooks/useCustomerCart'
 import { useCustomerSession } from '../../hooks/useCustomerSession'
+import { getCustomerCurrentOrder, type CustomerCurrentOrder } from '../../services/customer-order-api'
 
 type TableErrorKind = 'INACTIVE' | 'INVALID_OR_MISSING' | null
 
@@ -73,8 +74,12 @@ export function PublicMenuPage() {
   const [selectedDish, setSelectedDish] = useState<PublicDish | null>(null)
   const [table, setTable] = useState<PublicTable | null>(null)
   const [tableError, setTableError] = useState<TableErrorKind>(null)
+  const [orderStatus, setOrderStatus] = useState<CustomerCurrentOrder['status'] | null>(null)
+  const [orderReloadKey, setOrderReloadKey] = useState(0)
+  const [isLockRecoveryPending, setIsLockRecoveryPending] = useState(false)
   const { addItem, getQuantity, isSubmissionPending } = useCustomerCart(tableId)
   const { isAuthorizedForTable } = useCustomerSession()
+  const isAuthorized = isAuthorizedForTable(tableId)
 
   useEffect(() => {
     let isCurrent = true
@@ -120,6 +125,35 @@ export function PublicMenuPage() {
     }
   }, [reloadKey, tableId])
 
+  useEffect(() => {
+    if (!isAuthorized) {
+      setOrderStatus(null)
+      setIsLockRecoveryPending(false)
+      return
+    }
+
+    let isCurrent = true
+    const abortController = new AbortController()
+    async function refreshOrderStatus() {
+      try {
+        const order = await getCustomerCurrentOrder(abortController.signal)
+        if (!isCurrent) return
+        setOrderStatus(order.status)
+        setIsLockRecoveryPending(false)
+      } catch {
+        // Keep a known lock in place until an authoritative response can replace it.
+      }
+    }
+
+    void refreshOrderStatus()
+    const pollingTimer = window.setInterval(() => void refreshOrderStatus(), 10_000)
+    return () => {
+      isCurrent = false
+      window.clearInterval(pollingTimer)
+      abortController.abort()
+    }
+  }, [isAuthorized, orderReloadKey, tableId])
+
   const visibleDishes = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('vi-VN')
 
@@ -129,6 +163,12 @@ export function PublicMenuPage() {
       return matchesCategory && matchesSearch
     })
   }, [dishes, searchTerm, selectedCategoryId])
+  const isOrderingLocked = isLockRecoveryPending || orderStatus === 'PAYMENT_REQUESTED' || orderStatus === 'CLOSED'
+
+  function recoverOrderingLock() {
+    setIsLockRecoveryPending(true)
+    setOrderReloadKey(key => key + 1)
+  }
 
   if (isLoading) return <MenuLoadingState />
 
@@ -159,7 +199,9 @@ export function PublicMenuPage() {
 
       <JoinTableCard tableId={table.id} />
 
-      <div className="flex flex-wrap justify-end gap-3">{isAuthorizedForTable(table.id) && <Link className="inline-flex min-h-10 items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-label font-semibold text-content transition-colors hover:bg-surface-muted" to={`/table/${encodeURIComponent(table.id)}/order`}>Đơn hiện tại</Link>}<CustomerCartDrawer tableId={table.id} /></div>
+      <div className="flex flex-wrap justify-end gap-3">{isAuthorized && <Link className="inline-flex min-h-10 items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-label font-semibold text-content transition-colors hover:bg-surface-muted" to={`/table/${encodeURIComponent(table.id)}/order`}>Đơn hiện tại</Link>}<CustomerCartDrawer isOrderingLocked={isOrderingLocked} onOrderLocked={recoverOrderingLock} tableId={table.id} /></div>
+
+      {isOrderingLocked && <section className="rounded-card border border-warning bg-warning-soft p-4" role="status"><h2 className="text-card-title text-content">Đơn đã được khóa</h2><p className="mt-2 text-compact text-content-secondary">Đã có yêu cầu thanh toán hoặc đơn không còn mở. Bạn không thể gọi thêm món.</p></section>}
 
       <SearchInput onChange={event => setSearchTerm(event.target.value)} onClear={() => setSearchTerm('')} placeholder="Tìm món ăn, đồ uống..." value={searchTerm} />
 
@@ -178,12 +220,12 @@ export function PublicMenuPage() {
         <section aria-label="Danh sách món ăn">
           <h2 className="sr-only">Món ăn</h2>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} isAddDisabled={isSubmissionPending} onAddToCart={addItem} onViewDetails={setSelectedDish} quantity={getQuantity(dish.id)} /></li>)}
+            {visibleDishes.map(dish => <li key={dish.id}><DishCard dish={dish} isAddDisabled={isSubmissionPending || isOrderingLocked} onAddToCart={addItem} onViewDetails={setSelectedDish} quantity={getQuantity(dish.id)} /></li>)}
           </ul>
         </section>
       )}
       </div>
-      <DishDetailModal dish={selectedDish} isAddDisabled={isSubmissionPending} isOpen={selectedDish !== null} onAddToCart={addItem} onClose={() => setSelectedDish(null)} />
+      <DishDetailModal dish={selectedDish} isAddDisabled={isSubmissionPending || isOrderingLocked} isOpen={selectedDish !== null} onAddToCart={addItem} onClose={() => setSelectedDish(null)} />
     </>
   )
 }
