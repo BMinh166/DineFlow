@@ -10,6 +10,7 @@ import { isCustomerUnauthorizedError, subscribeToCustomerUnauthorized } from '..
 import type { CustomerSession, CustomerSessionStatus } from '../types/customer-session'
 
 interface CustomerSessionContextValue {
+  sessionExpired: boolean
   status: CustomerSessionStatus
   session: CustomerSession | null
   isAuthorizedForTable: (tableId: string) => boolean
@@ -20,11 +21,13 @@ interface CustomerSessionContextValue {
 export const CustomerSessionContext = createContext<CustomerSessionContextValue | undefined>(undefined)
 
 export function CustomerSessionProvider({ children }: { children: ReactNode }) {
+  const [sessionExpired, setSessionExpired] = useState(false)
   const [status, setStatus] = useState<CustomerSessionStatus>('restoring')
   const [session, setSession] = useState<CustomerSession | null>(null)
 
   const clearSession = useCallback(() => {
     clearCustomerSessionToken()
+    setSessionExpired(true)
     setSession(null)
     setStatus('unauthorized')
   }, [])
@@ -60,6 +63,7 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
   const join = useCallback(async (tableId: string, joinCode: number) => {
     const result = await joinCustomerTable(tableId, joinCode)
     setCustomerSessionToken(result.sessionToken)
+    setSessionExpired(false)
     setSession(result.session)
     setStatus('authorized')
   }, [])
@@ -70,12 +74,13 @@ export function CustomerSessionProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<CustomerSessionContextValue>(() => ({
+    sessionExpired,
     status,
     session,
     isAuthorizedForTable,
     join,
     clearSession,
-  }), [clearSession, isAuthorizedForTable, join, session, status])
+  }), [clearSession, isAuthorizedForTable, join, session, sessionExpired, status])
 
   return <CustomerSessionContext.Provider value={value}>{children}</CustomerSessionContext.Provider>
 }

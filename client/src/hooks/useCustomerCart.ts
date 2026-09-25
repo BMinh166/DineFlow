@@ -1,13 +1,16 @@
 import { useContext, useMemo } from 'react'
 
 import { CustomerCartContext } from '../context/CustomerCartContext'
+import { useCustomerSession } from './useCustomerSession'
 import type { PublicDish } from '../types/public-menu'
 
 export function useCustomerCart(tableId: string) {
   const context = useContext(CustomerCartContext)
   if (!context) throw new Error('useCustomerCart must be used within CustomerCartProvider.')
+  const { session, status } = useCustomerSession()
 
-  const items = context.cartTableId === tableId ? context.items : []
+  const activeTableSessionId = status === 'authorized' ? session?.tableSessionId ?? null : null
+  const items = context.cartTableId === tableId && context.cartTableSessionId === activeTableSessionId ? context.items : []
   const itemCount = items.reduce((count, item) => count + item.quantity, 0)
   const displayTotal = items.reduce((total, item) => total + item.price * item.quantity, 0)
 
