@@ -7,6 +7,7 @@ import { getWaiterActiveTableSession, getWaiterTables, openWaiterTable } from '.
 import type { OpenWaiterTableResult, WaiterActiveTableSession, WaiterTable } from '../../types/table'
 import { getApiErrorMessage } from '../../utils/api-error'
 import { formatVnd } from '../../utils/format-vnd'
+import { WaiterAssistedOrderingModal } from './WaiterAssistedOrderingModal'
 
 type TableFilter = 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'PAYMENT_REQUESTED'
 type SessionTable = Pick<WaiterTable, 'id' | 'number'> | OpenWaiterTableResult['table']
@@ -149,7 +150,7 @@ function TableCard({ onOpen, onViewSession, openingTableId, table }: {
   )
 }
 
-function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isLoading, onClose, onCopy, onRetry, table }: {
+function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isLoading, onClose, onCopy, onRetry, onStartAssistedOrdering, table }: {
   detail: SessionDetail | null
   errorMessage: string | null
   hasBackgroundRefreshError: boolean
@@ -157,10 +158,11 @@ function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isLoadi
   onClose: () => void
   onCopy: (joinCode: number) => void
   onRetry: () => void
+  onStartAssistedOrdering: () => void
   table: SessionTable | null
 }) {
   return (
-    <Modal className="max-w-2xl" footer={detail && <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button onClick={onRetry} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button><Button onClick={() => onCopy(detail.session.joinCode)} variant="secondary"><Clipboard aria-hidden="true" className="size-4" />Sao chép mã</Button></div>} isOpen={Boolean(table)} onClose={onClose} title={table ? `Chi tiết Bàn ${table.number}` : 'Chi tiết bàn'}>
+    <Modal className="max-w-2xl" footer={detail && <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><Button onClick={onRetry} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button><Button onClick={() => onCopy(detail.session.joinCode)} variant="secondary"><Clipboard aria-hidden="true" className="size-4" />Sao chép mã</Button>{detail.table.active && detail.table.status === 'OCCUPIED' && detail.session.status === 'ACTIVE' && detail.order.status === 'OPEN' && <Button onClick={onStartAssistedOrdering}>Hỗ trợ thêm món</Button>}</div>} isOpen={Boolean(table)} onClose={onClose} title={table ? `Chi tiết Bàn ${table.number}` : 'Chi tiết bàn'}>
       {isLoading && <PageLoading label="Đang tải phiên phục vụ" />}
       {!isLoading && errorMessage && <ErrorState description={errorMessage} onRetry={onRetry} title="Không thể tải phiên phục vụ" />}
       {!isLoading && !errorMessage && detail && (
@@ -201,6 +203,7 @@ function SessionModal({ detail, errorMessage, hasBackgroundRefreshError, isLoadi
 export function WaiterTableBoardPage() {
   const toast = useToast()
   const [activeFilter, setActiveFilter] = useState<TableFilter>('ALL')
+  const [isAssistedOrderingOpen, setIsAssistedOrderingOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [hasSessionBackgroundRefreshError, setHasSessionBackgroundRefreshError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -249,6 +252,7 @@ export function WaiterTableBoardPage() {
   function closeSessionModal() {
     abortSessionRequest()
     sessionTableRef.current = null
+    setIsAssistedOrderingOpen(false)
     setHasSessionBackgroundRefreshError(false); setSessionDetail(null); setSessionErrorMessage(null); setSessionTable(null); setIsSessionLoading(false)
   }
 
@@ -348,7 +352,8 @@ export function WaiterTableBoardPage() {
       {!isLoading && !errorMessage && tables.length > 0 && filteredTables.length === 0 && <EmptyState description="Không có bàn phù hợp với bộ lọc hiện tại." icon={TableProperties} title="Không tìm thấy bàn phù hợp" />}
       {!isLoading && !errorMessage && filteredTables.length > 0 && <ul aria-label="Danh sách bàn phục vụ" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{filteredTables.map(table => <li key={table.id}><TableCard onOpen={setTableToOpen} onViewSession={table => void loadSession(table)} openingTableId={openingTableId} table={table} /></li>)}</ul>}
       <ConfirmDialog confirmLabel="Mở bàn" description={tableToOpen ? `Bàn ${tableToOpen.number} sẽ bắt đầu một phiên phục vụ mới.` : ''} isOpen={Boolean(tableToOpen)} onClose={() => setTableToOpen(null)} onConfirm={handleOpenTable} onError={error => { setTableToOpen(null); toast.error(getOpenTableErrorMessage(error)) }} title={tableToOpen ? `Mở Bàn ${tableToOpen.number}?` : 'Mở bàn'} />
-      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} hasBackgroundRefreshError={hasSessionBackgroundRefreshError} isLoading={isSessionLoading} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable, sessionDetail ? 'background' : 'initial')} table={sessionTable} />
+      <SessionModal detail={sessionDetail} errorMessage={sessionErrorMessage} hasBackgroundRefreshError={hasSessionBackgroundRefreshError} isLoading={isSessionLoading} onClose={closeSessionModal} onCopy={joinCode => void copyJoinCode(joinCode)} onRetry={() => sessionTable && void loadSession(sessionTable, sessionDetail ? 'background' : 'initial')} onStartAssistedOrdering={() => setIsAssistedOrderingOpen(true)} table={sessionTable} />
+      <WaiterAssistedOrderingModal isOpen={isAssistedOrderingOpen} onClose={() => setIsAssistedOrderingOpen(false)} onSuccess={() => { setIsAssistedOrderingOpen(false); if (sessionTable) { abortSessionRequest(); void loadSession(sessionTable, 'initial') }; reloadTables(); toast.success('Đã thêm món vào đơn.'); }} table={sessionDetail ? { id: sessionDetail.table.id, number: sessionDetail.table.number } : null} />
     </div>
   )
 }
