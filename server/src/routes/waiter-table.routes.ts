@@ -6,6 +6,7 @@ import {
   listWaiterTablesController,
   openWaiterTableController,
 } from '../controllers/waiter-table.controller.js'
+import { cancelWaiterPaymentRequestController } from '../controllers/waiter-cancel-payment-request.controller.js'
 import { authenticateStaff } from '../middleware/authenticate-staff.js'
 import { requireStaffRole } from '../middleware/require-staff-role.js'
 import { validateRequest } from '../middleware/validate-request.js'
@@ -31,4 +32,9 @@ waiterTableRouter.post(
   '/:tableId/items',
   validateRequest({ params: tableIdParamsSchema, body: addCustomerOrderItemsRequestSchema }),
   addWaiterOrderItemsController,
+)
+waiterTableRouter.post(
+  '/:tableId/cancel-payment-request',
+  validateRequest({ params: tableIdParamsSchema }),
+  cancelWaiterPaymentRequestController,
 )

@@ -34,3 +34,12 @@ export async function addWaiterOrderItems(
   )
   return response.data.data.order
 }
+
+export async function cancelWaiterPaymentRequest(
+  tableId: string,
+): Promise<{ id: string, status: 'OPEN' }> {
+  const response = await api.post<ApiSuccessResponse<{ order: { id: string, status: 'OPEN' } }>>(
+    `/waiter/tables/${tableId}/cancel-payment-request`,
+  )
+  return response.data.data.order
+}
