@@ -15,7 +15,11 @@ const orderErrorMessages: Record<CustomerOrderErrorKind, string> = {
   unexpected: 'Không thể đặt món lúc này. Vui lòng thử lại sau.',
 }
 
-export function CustomerCartDrawer({ tableId }: { tableId: string }) {
+export function CustomerCartDrawer({ isOrderingLocked, onOrderLocked, tableId }: {
+  isOrderingLocked: boolean
+  onOrderLocked: () => void
+  tableId: string
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const [isReviewOpen, setIsReviewOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -24,7 +28,7 @@ export function CustomerCartDrawer({ tableId }: { tableId: string }) {
   const { isAuthorizedForTable, status } = useCustomerSession()
   const toast = useToast()
   const isAuthorized = isAuthorizedForTable(tableId)
-  const canPlaceOrder = items.length > 0 && isAuthorized && !isSubmitting
+  const canPlaceOrder = items.length > 0 && isAuthorized && !isOrderingLocked && !isSubmitting
 
   async function handlePlaceOrder() {
     if (!canPlaceOrder) return
@@ -40,7 +44,9 @@ export function CustomerCartDrawer({ tableId }: { tableId: string }) {
       setIsOpen(false)
       toast.success('Đặt món thành công.')
     } catch (error) {
-      setSubmissionError(orderErrorMessages[getCustomerOrderErrorKind(error)])
+      const errorKind = getCustomerOrderErrorKind(error)
+      setSubmissionError(orderErrorMessages[errorKind])
+      if (errorKind === 'order-locked') onOrderLocked()
     } finally {
       setIsSubmitting(false)
       setSubmissionPending(false)
@@ -56,7 +62,7 @@ export function CustomerCartDrawer({ tableId }: { tableId: string }) {
         onClose={() => !isSubmitting && setIsOpen(false)}
         title="Giỏ hàng"
       >
-        {items.length === 0 ? <EmptyState description="Thêm món từ thực đơn để bắt đầu lựa chọn." icon={ShoppingCart} title="Giỏ hàng đang trống" /> : <div className="space-y-4"><p className="text-compact text-content-secondary">Giá cuối cùng được xác nhận khi đặt món.</p>{status === 'restoring' && <p className="text-compact text-content-secondary" role="status">Đang kiểm tra trạng thái vào bàn...</p>}{status !== 'restoring' && !isAuthorized && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Vui lòng vào bàn bằng mã nhân viên cung cấp trước khi đặt món.</p>}{submissionError && <p className="rounded-control border border-danger bg-danger-soft p-3 text-compact text-danger" role="alert">{submissionError}</p>}<ul className="space-y-3">{items.map(item => <li className="rounded-card border border-border p-3" key={item.dishId}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="break-words text-label text-content">{item.name}</h3><p className="mt-1 text-compact text-content-secondary">{formatVnd(item.price)}</p></div><IconButton aria-label={`Xóa ${item.name} khỏi giỏ`} disabled={isSubmitting} icon={Trash2} onClick={() => removeItem(item.dishId)} size="sm" /></div><div className="mt-3 flex items-center justify-between gap-3"><p className="text-label text-content">{formatVnd(item.price * item.quantity)}</p><div className="flex items-center gap-1"><IconButton aria-label={`Giảm số lượng ${item.name}`} disabled={isSubmitting} icon={Minus} onClick={() => decreaseQuantity(item.dishId)} size="sm" /><span aria-label={`Số lượng ${item.name}: ${item.quantity}`} className="min-w-8 text-center text-label text-content">{item.quantity}</span><IconButton aria-label={`Tăng số lượng ${item.name}`} disabled={isSubmitting || item.quantity === 99} icon={Plus} onClick={() => increaseQuantity(item.dishId)} size="sm" /></div></div></li>)}</ul></div>}
+        {items.length === 0 ? <EmptyState description="Thêm món từ thực đơn để bắt đầu lựa chọn." icon={ShoppingCart} title="Giỏ hàng đang trống" /> : <div className="space-y-4"><p className="text-compact text-content-secondary">Giá cuối cùng được xác nhận khi đặt món.</p>{isOrderingLocked && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Đơn đã được khóa để thanh toán. Giỏ tạm không thể được gửi.</p>}{status === 'restoring' && <p className="text-compact text-content-secondary" role="status">Đang kiểm tra trạng thái vào bàn...</p>}{status !== 'restoring' && !isAuthorized && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Vui lòng vào bàn bằng mã nhân viên cung cấp trước khi đặt món.</p>}{submissionError && <p className="rounded-control border border-danger bg-danger-soft p-3 text-compact text-danger" role="alert">{submissionError}</p>}<ul className="space-y-3">{items.map(item => <li className="rounded-card border border-border p-3" key={item.dishId}><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="break-words text-label text-content">{item.name}</h3><p className="mt-1 text-compact text-content-secondary">{formatVnd(item.price)}</p></div><IconButton aria-label={`Xóa ${item.name} khỏi giỏ`} disabled={isSubmitting || isOrderingLocked} icon={Trash2} onClick={() => removeItem(item.dishId)} size="sm" /></div><div className="mt-3 flex items-center justify-between gap-3"><p className="text-label text-content">{formatVnd(item.price * item.quantity)}</p><div className="flex items-center gap-1"><IconButton aria-label={`Giảm số lượng ${item.name}`} disabled={isSubmitting || isOrderingLocked} icon={Minus} onClick={() => decreaseQuantity(item.dishId)} size="sm" /><span aria-label={`Số lượng ${item.name}: ${item.quantity}`} className="min-w-8 text-center text-label text-content">{item.quantity}</span><IconButton aria-label={`Tăng số lượng ${item.name}`} disabled={isSubmitting || isOrderingLocked || item.quantity === 99} icon={Plus} onClick={() => increaseQuantity(item.dishId)} size="sm" /></div></div></li>)}</ul></div>}
       </Drawer>
       <ConfirmDialog confirmLabel="Đặt món" description="Các món trong giỏ sẽ được gửi đến nhà hàng. Giá và trạng thái cuối cùng do hệ thống xác nhận." isOpen={isReviewOpen} onClose={() => setIsReviewOpen(false)} onConfirm={handlePlaceOrder} title="Xác nhận đặt món?" />
     </>

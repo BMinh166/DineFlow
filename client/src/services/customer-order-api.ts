@@ -24,6 +24,14 @@ export interface PlaceCustomerOrderResult {
   }
 }
 
+export interface CustomerPaymentRequestResult {
+  order: {
+    id: string
+    paymentRequestedAt: string
+    status: 'PAYMENT_REQUESTED'
+  }
+}
+
 export interface CustomerCurrentOrderItem {
   id: string
   dishName: string
@@ -43,6 +51,11 @@ export type CustomerOrderErrorKind = 'invalid-cart' | 'session-expired' | 'dish-
 
 export async function placeCustomerOrder(items: CustomerOrderItemInput[]): Promise<PlaceCustomerOrderResult> {
   const response = await customerApi.post<ApiSuccessResponse<PlaceCustomerOrderResult>>('/customer/orders/items', { items })
+  return response.data.data
+}
+
+export async function requestCustomerOrderPayment(): Promise<CustomerPaymentRequestResult> {
+  const response = await customerApi.post<ApiSuccessResponse<CustomerPaymentRequestResult>>('/customer/orders/request-payment')
   return response.data.data
 }
 

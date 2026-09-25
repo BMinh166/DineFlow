@@ -6,8 +6,8 @@ interface ApiSuccessResponse<T> {
   data: T
 }
 
-export async function getWaiterTables(): Promise<WaiterTable[]> {
-  const response = await api.get<ApiSuccessResponse<{ tables: WaiterTable[] }>>('/waiter/tables')
+export async function getWaiterTables(signal?: AbortSignal): Promise<WaiterTable[]> {
+  const response = await api.get<ApiSuccessResponse<{ tables: WaiterTable[] }>>('/waiter/tables', { signal })
   return response.data.data.tables
 }
 

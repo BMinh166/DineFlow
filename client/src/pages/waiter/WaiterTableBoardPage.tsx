@@ -13,6 +13,7 @@ type TableFilter = 'ALL' | 'AVAILABLE' | 'OCCUPIED' | 'PAYMENT_REQUESTED'
 type SessionTable = Pick<WaiterTable, 'id' | 'number'> | OpenWaiterTableResult['table']
 type SessionDetail = WaiterActiveTableSession
 type SessionRefreshMode = 'background' | 'initial'
+type TableRefreshMode = 'background' | 'initial'
 
 const pollingIntervalMs = 10_000
 
@@ -205,6 +206,7 @@ export function WaiterTableBoardPage() {
   const [activeFilter, setActiveFilter] = useState<TableFilter>('ALL')
   const [isAssistedOrderingOpen, setIsAssistedOrderingOpen] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [hasTableBackgroundRefreshError, setHasTableBackgroundRefreshError] = useState(false)
   const [hasSessionBackgroundRefreshError, setHasSessionBackgroundRefreshError] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSessionLoading, setIsSessionLoading] = useState(false)
@@ -215,32 +217,74 @@ export function WaiterTableBoardPage() {
   const [sessionTable, setSessionTable] = useState<SessionTable | null>(null)
   const [tableToOpen, setTableToOpen] = useState<WaiterTable | null>(null)
   const [tables, setTables] = useState<WaiterTable[]>([])
+  const tableAbortControllerRef = useRef<AbortController | null>(null)
+  const tableRequestInFlightRef = useRef(false)
+  const tableRequestId = useRef(0)
   const sessionAbortControllerRef = useRef<AbortController | null>(null)
   const sessionRequestInFlightRef = useRef(false)
   const sessionRequestId = useRef(0)
   const sessionTableRef = useRef<SessionTable | null>(null)
 
-  useEffect(() => {
-    let isCurrent = true
-    async function loadTables() {
-      setIsLoading(true)
-      setErrorMessage(null)
-      try {
-        const result = await getWaiterTables()
-        if (isCurrent) setTables(result)
-      } catch (error) {
-        if (isCurrent) setErrorMessage(getApiErrorMessage(error, 'Không thể tải danh sách bàn. Vui lòng thử lại.'))
-      } finally {
-        if (isCurrent) setIsLoading(false)
-      }
-    }
-    void loadTables()
-    return () => { isCurrent = false }
-  }, [reloadKey])
-
   const filteredTables = useMemo(() => tables.filter(table => matchesFilter(table, activeFilter)), [activeFilter, tables])
   const filterCounts = useMemo(() => new Map(filterOptions.map(filter => [filter.id, tables.filter(table => matchesFilter(table, filter.id)).length])), [tables])
   function reloadTables() { setReloadKey(key => key + 1) }
+
+  function abortTableRequest() {
+    tableRequestId.current += 1
+    tableAbortControllerRef.current?.abort()
+    tableAbortControllerRef.current = null
+    tableRequestInFlightRef.current = false
+  }
+
+  async function loadTables(refreshMode: TableRefreshMode = 'initial') {
+    if (tableRequestInFlightRef.current) {
+      if (refreshMode === 'background') return
+      abortTableRequest()
+    }
+
+    const requestId = tableRequestId.current + 1
+    const abortController = new AbortController()
+    tableRequestId.current = requestId
+    tableAbortControllerRef.current = abortController
+    tableRequestInFlightRef.current = true
+    if (refreshMode === 'initial') {
+      setIsLoading(true)
+      setErrorMessage(null)
+      setHasTableBackgroundRefreshError(false)
+    }
+
+    try {
+      const result = await getWaiterTables(abortController.signal)
+      if (tableRequestId.current !== requestId) return
+      setTables(result)
+      setErrorMessage(null)
+      setHasTableBackgroundRefreshError(false)
+    } catch (error) {
+      if (abortController.signal.aborted || tableRequestId.current !== requestId) return
+      if (refreshMode === 'background') {
+        setHasTableBackgroundRefreshError(true)
+      } else {
+        setErrorMessage(getApiErrorMessage(error, 'Không thể tải danh sách bàn. Vui lòng thử lại.'))
+      }
+    } finally {
+      if (tableRequestId.current === requestId) {
+        tableAbortControllerRef.current = null
+        tableRequestInFlightRef.current = false
+        if (refreshMode === 'initial') setIsLoading(false)
+      }
+    }
+  }
+
+  useEffect(() => {
+    void loadTables('initial')
+    return () => abortTableRequest()
+  }, [reloadKey])
+
+  useEffect(() => {
+    if (isLoading || errorMessage) return
+    const pollingTimer = window.setInterval(() => void loadTables('background'), pollingIntervalMs)
+    return () => window.clearInterval(pollingTimer)
+  }, [errorMessage, isLoading])
 
   function abortSessionRequest() {
     sessionRequestId.current += 1
@@ -316,6 +360,11 @@ export function WaiterTableBoardPage() {
   }, [sessionErrorMessage, sessionTable?.id])
 
   useEffect(() => () => abortSessionRequest(), [])
+  useEffect(() => {
+    if (!isAssistedOrderingOpen || !sessionDetail || sessionDetail.order.status === 'OPEN') return
+    setIsAssistedOrderingOpen(false)
+    toast.error('Đơn đã yêu cầu thanh toán nên không thể thêm món.')
+  }, [isAssistedOrderingOpen, sessionDetail?.order.status, toast])
   async function handleOpenTable() {
     if (!tableToOpen || openingTableId) return
     const table = tableToOpen
@@ -348,6 +397,7 @@ export function WaiterTableBoardPage() {
       {!isLoading && !errorMessage && tables.length > 0 && <div aria-label="Bộ lọc danh sách bàn" className="flex flex-wrap gap-2">{filterOptions.map(filter => <Button aria-pressed={activeFilter === filter.id} key={filter.id} onClick={() => setActiveFilter(filter.id)} variant={activeFilter === filter.id ? 'primary' : 'secondary'}>{filter.label} ({filterCounts.get(filter.id) ?? 0})</Button>)}</div>}
       {isLoading && <PageLoading label="Đang tải danh sách bàn" />}
       {!isLoading && errorMessage && <ErrorState description={errorMessage} onRetry={reloadTables} title="Không thể tải danh sách bàn" />}
+      {!isLoading && !errorMessage && hasTableBackgroundRefreshError && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Không thể cập nhật danh sách bàn mới nhất. Dữ liệu gần nhất vẫn đang được hiển thị.</p>}
       {!isLoading && !errorMessage && tables.length === 0 && <EmptyState description="Hiện chưa có bàn nào để phục vụ." icon={TableProperties} title="Chưa có bàn" />}
       {!isLoading && !errorMessage && tables.length > 0 && filteredTables.length === 0 && <EmptyState description="Không có bàn phù hợp với bộ lọc hiện tại." icon={TableProperties} title="Không tìm thấy bàn phù hợp" />}
       {!isLoading && !errorMessage && filteredTables.length > 0 && <ul aria-label="Danh sách bàn phục vụ" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{filteredTables.map(table => <li key={table.id}><TableCard onOpen={setTableToOpen} onViewSession={table => void loadSession(table)} openingTableId={openingTableId} table={table} /></li>)}</ul>}
