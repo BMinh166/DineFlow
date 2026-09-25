@@ -13,7 +13,7 @@ const pollingIntervalMs = 10_000
 
 export function CustomerCurrentOrderPage() {
   const { tableId = '' } = useParams()
-  const { isAuthorizedForTable, status } = useCustomerSession()
+  const { isAuthorizedForTable, sessionExpired, status } = useCustomerSession()
   const [order, setOrder] = useState<CustomerCurrentOrder | null>(null)
   const [orderTableId, setOrderTableId] = useState<string | null>(null)
   const [viewState, setViewState] = useState<CurrentOrderViewState>('loading')
@@ -100,7 +100,7 @@ export function CustomerCurrentOrderPage() {
   if (status === 'restoring') return <PageLoading label="Đang kiểm tra trạng thái vào bàn" />
 
   if (!isAuthorized) {
-    return <EmptyState action={<Link className="inline-flex min-h-10 items-center justify-center rounded-control bg-brand px-4 py-2 text-label font-semibold text-on-primary transition-colors hover:bg-brand-hover" to={menuPath}>Về thực đơn</Link>} description="Vui lòng vào bàn để xem đơn hiện tại của bạn." icon={ClipboardList} title="Chưa xác nhận vào bàn" />
+    return <EmptyState action={<Link className="inline-flex min-h-10 items-center justify-center rounded-control bg-brand px-4 py-2 text-label font-semibold text-on-primary transition-colors hover:bg-brand-hover" to={menuPath}>Về thực đơn</Link>} description={sessionExpired ? 'Phiên phục vụ đã kết thúc. Vui lòng nhập mã mới nếu nhân viên mở phiên phục vụ mới.' : 'Vui lòng vào bàn để xem đơn hiện tại của bạn.'} icon={ClipboardList} title={sessionExpired ? 'Phiên vào bàn đã kết thúc' : 'Chưa xác nhận vào bàn'} />
   }
 
   if (viewState === 'loading') return <PageLoading label="Đang tải đơn hiện tại" />
