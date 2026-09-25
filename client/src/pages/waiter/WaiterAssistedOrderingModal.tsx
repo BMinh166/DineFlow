@@ -5,21 +5,40 @@ import { Button, EmptyState, ErrorState, Modal, PageLoading, SearchInput } from 
 import { getPublicMenuCategories, getPublicMenuDishes } from '../../services/public-menu-api'
 import { addWaiterOrderItems } from '../../services/waiter-table-api'
 import type { PublicCategory, PublicDish } from '../../types/public-menu'
-import { getApiErrorMessage } from '../../utils/api-error'
+import { getApiErrorCode } from '../../utils/api-error'
 import { formatVnd } from '../../utils/format-vnd'
 
 type CartItem = Pick<PublicDish, 'id' | 'name' | 'price'> & { quantity: number }
 
 type Props = {
   isOpen: boolean
+  onAuthoritativeInvalidation: (message: string) => void
   onClose: () => void
   onSuccess: () => void
   table: { id: string, number: number } | null
 }
 
 const maximumQuantity = 99
+const operationalConflictCodes = new Set([
+  'ACTIVE_TABLE_SESSION_INCONSISTENT',
+  'ACTIVE_TABLE_SESSION_NOT_FOUND',
+  'CURRENT_ORDER_NOT_FOUND',
+  'ORDER_CLOSED',
+  'ORDER_NOT_OPEN',
+  'ORDER_PAYMENT_REQUESTED',
+  'TABLE_INACTIVE',
+  'TABLE_NOT_FOUND',
+  'TABLE_NOT_OCCUPIED',
+])
+const dishValidationMessages: Record<string, string> = {
+  DISH_CATEGORY_INACTIVE: 'Danh mục của một món đã ngừng phục vụ. Vui lòng kiểm tra lại giỏ tạm.',
+  DISH_INACTIVE: 'Một món trong giỏ đã ngừng phục vụ. Vui lòng kiểm tra lại giỏ tạm.',
+  DISH_NOT_FOUND: 'Không tìm thấy một món trong giỏ. Vui lòng kiểm tra lại giỏ tạm.',
+  DISH_UNAVAILABLE: 'Một món trong giỏ hiện tạm hết. Vui lòng kiểm tra lại giỏ tạm.',
+  VALIDATION_ERROR: 'Giỏ tạm không hợp lệ. Vui lòng kiểm tra số lượng món.',
+}
 
-export function WaiterAssistedOrderingModal({ isOpen, onClose, onSuccess, table }: Props) {
+export function WaiterAssistedOrderingModal({ isOpen, onAuthoritativeInvalidation, onClose, onSuccess, table }: Props) {
   const [cart, setCart] = useState<CartItem[]>([])
   const [categories, setCategories] = useState<PublicCategory[]>([])
   const [dishes, setDishes] = useState<PublicDish[]>([])
@@ -27,6 +46,7 @@ export function WaiterAssistedOrderingModal({ isOpen, onClose, onSuccess, table 
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [menuError, setMenuError] = useState(false)
+  const [menuReloadKey, setMenuReloadKey] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
 
@@ -34,7 +54,14 @@ export function WaiterAssistedOrderingModal({ isOpen, onClose, onSuccess, table 
     if (!isOpen) return
     let isCurrent = true
     setCart([]); setCategories([]); setDishes([]); setErrorMessage(null); setMenuError(false)
-    setSearchTerm(''); setSelectedCategoryId(null); setIsLoading(true)
+    setSearchTerm(''); setSelectedCategoryId(null)
+  }, [isOpen, table?.id])
+
+  useEffect(() => {
+    if (!isOpen) return
+    let isCurrent = true
+    setIsLoading(true)
+    setMenuError(false)
     void Promise.all([getPublicMenuCategories(), getPublicMenuDishes()])
       .then(([loadedCategories, loadedDishes]) => {
         if (!isCurrent) return
@@ -43,7 +70,7 @@ export function WaiterAssistedOrderingModal({ isOpen, onClose, onSuccess, table 
       .catch(() => { if (isCurrent) setMenuError(true) })
       .finally(() => { if (isCurrent) setIsLoading(false) })
     return () => { isCurrent = false }
-  }, [isOpen, table?.id])
+  }, [isOpen, menuReloadKey, table?.id])
 
   const visibleDishes = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase('vi-VN')
@@ -78,11 +105,21 @@ export function WaiterAssistedOrderingModal({ isOpen, onClose, onSuccess, table 
       setCart([])
       onSuccess()
     } catch (error) {
-      setErrorMessage(getApiErrorMessage(error, 'Không thể thêm món vào đơn. Vui lòng thử lại.'))
+      const errorCode = getApiErrorCode(error)
+      if (errorCode && operationalConflictCodes.has(errorCode)) {
+        onAuthoritativeInvalidation('Trạng thái bàn hoặc đơn đã thay đổi. Vui lòng xem lại chi tiết bàn trước khi thêm món.')
+        return
+      }
+      if (errorCode && dishValidationMessages[errorCode]) {
+        setErrorMessage(dishValidationMessages[errorCode])
+        setMenuReloadKey(key => key + 1)
+        return
+      }
+      onAuthoritativeInvalidation('Không xác định được kết quả thêm món. Hệ thống sẽ tải lại chi tiết bàn; không tự gửi lại yêu cầu.')
     } finally { setIsSubmitting(false) }
   }
 
-  const footer = <div className="space-y-3"><div className="flex flex-wrap items-end justify-between gap-2 text-compact"><span className="text-content-secondary">{cartQuantity} món đã chọn · Tạm tính</span><strong className="text-price text-content">{formatVnd(displaySubtotal)}</strong></div><p className="text-caption text-content-secondary">Tạm tính theo thực đơn hiện tại. Tổng đơn được máy chủ xác nhận sau khi thêm món.</p><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button disabled={isSubmitting || cart.length === 0} onClick={() => setCart([])} variant="secondary">Xóa giỏ tạm</Button><Button disabled={cart.length === 0} loading={isSubmitting} onClick={() => void submit()}>Thêm vào Bàn {table?.number}</Button></div></div>
+  const footer = <div className="space-y-3"><div className="flex flex-wrap items-end justify-between gap-2 text-compact"><span className="text-content-secondary">{cartQuantity} món đã chọn · Tạm tính</span><strong className="text-price text-content">{formatVnd(displaySubtotal)}</strong></div><p className="text-caption text-content-secondary">Tạm tính theo thực đơn hiện tại. Tổng đơn được máy chủ xác nhận sau khi thêm món.</p><div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button disabled={isSubmitting || cart.length === 0} onClick={() => setCart([])} variant="secondary">Xóa giỏ tạm</Button><Button disabled={cart.length === 0 || isLoading} loading={isSubmitting} onClick={() => void submit()}>Thêm vào Bàn {table?.number}</Button></div></div>
 
   return <Modal className="max-w-5xl" dismissible={!isSubmitting} footer={footer} isOpen={isOpen} onClose={onClose} title={table ? `Hỗ trợ thêm món · Bàn ${table.number}` : 'Hỗ trợ thêm món'}><div className="space-y-5">
     {errorMessage && <p className="rounded-control border border-danger bg-danger-soft p-3 text-compact text-danger" role="alert">{errorMessage}</p>}
