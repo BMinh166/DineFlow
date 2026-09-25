@@ -27,3 +27,5 @@ export const addCustomerOrderItemsRequestSchema = z.object({
 })
 
 export type AddCustomerOrderItemsRequest = z.infer<typeof addCustomerOrderItemsRequestSchema>
+
+export const requestCustomerOrderPaymentRequestSchema = z.object({}).strict().optional()
