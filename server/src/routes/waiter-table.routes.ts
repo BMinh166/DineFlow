@@ -2,6 +2,7 @@ import { Router } from 'express'
 
 import {
   addWaiterOrderItemsController,
+  cancelWaiterPaymentRequestController,
   getWaiterActiveTableSessionController,
   listWaiterTablesController,
   openWaiterTableController,
@@ -31,4 +32,9 @@ waiterTableRouter.post(
   '/:tableId/items',
   validateRequest({ params: tableIdParamsSchema, body: addCustomerOrderItemsRequestSchema }),
   addWaiterOrderItemsController,
+)
+waiterTableRouter.post(
+  '/:tableId/cancel-payment-request',
+  validateRequest({ params: tableIdParamsSchema }),
+  cancelWaiterPaymentRequestController,
 )
