@@ -1,11 +1,13 @@
 import type { RequestHandler } from 'express'
 
 import {
+  addWaiterOrderItems,
   getWaiterActiveTableSession,
   listWaiterTables,
   openWaiterTable,
 } from '../services/waiter-table.service.js'
 import { successResponse } from '../utils/api-response.js'
+import type { AddCustomerOrderItemsRequest } from '../validators/customer-order.validator.js'
 
 function getValidatedTableId(params: { tableId?: string | string[] }): string {
   return params.tableId as string
@@ -27,4 +29,12 @@ export const openWaiterTableController: RequestHandler = async (request, respons
 export const getWaiterActiveTableSessionController: RequestHandler = async (request, response) => {
   const tableSession = await getWaiterActiveTableSession(getValidatedTableId(request.params))
   response.status(200).json(successResponse({ tableSession }))
+}
+
+export const addWaiterOrderItemsController: RequestHandler = async (request, response) => {
+  const result = await addWaiterOrderItems(
+    getValidatedTableId(request.params),
+    request.body as AddCustomerOrderItemsRequest,
+  )
+  response.status(200).json(successResponse(result))
 }

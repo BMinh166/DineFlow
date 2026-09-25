@@ -1,6 +1,7 @@
 import { Router } from 'express'
 
 import {
+  addWaiterOrderItemsController,
   getWaiterActiveTableSessionController,
   listWaiterTablesController,
   openWaiterTableController,
@@ -9,6 +10,7 @@ import { authenticateStaff } from '../middleware/authenticate-staff.js'
 import { requireStaffRole } from '../middleware/require-staff-role.js'
 import { validateRequest } from '../middleware/validate-request.js'
 import { openTableRequestSchema, tableIdParamsSchema } from '../validators/table.validator.js'
+import { addCustomerOrderItemsRequestSchema } from '../validators/customer-order.validator.js'
 
 export const waiterTableRouter = Router()
 
@@ -24,4 +26,9 @@ waiterTableRouter.get(
   '/:tableId/session',
   validateRequest({ params: tableIdParamsSchema }),
   getWaiterActiveTableSessionController,
+)
+waiterTableRouter.post(
+  '/:tableId/items',
+  validateRequest({ params: tableIdParamsSchema, body: addCustomerOrderItemsRequestSchema }),
+  addWaiterOrderItemsController,
 )
