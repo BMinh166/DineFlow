@@ -11,6 +11,7 @@ import { healthRouter } from './routes/health.routes.js'
 import { kitchenQueueRouter } from './routes/kitchen-queue.routes.js'
 import { managerCategoryRouter } from './routes/manager-category.routes.js'
 import { managerDishRouter } from './routes/manager-dish.routes.js'
+import { managerStaffRouter } from './routes/manager-staff.routes.js'
 import { managerTableRouter } from './routes/manager-table.routes.js'
 import { publicMenuRouter } from './routes/public-menu.routes.js'
 import { publicTableRouter } from './routes/public-table.routes.js'
@@ -30,6 +31,7 @@ app.use('/api/health', healthRouter)
 app.use('/api/kitchen/queue', kitchenQueueRouter)
 app.use('/api/manager/categories', managerCategoryRouter)
 app.use('/api/manager/dishes', managerDishRouter)
+app.use('/api/manager/staff', managerStaffRouter)
 app.use('/api/manager/tables', managerTableRouter)
 app.use('/api/public/menu', publicMenuRouter)
 app.use('/api/public/tables', publicTableRouter)
