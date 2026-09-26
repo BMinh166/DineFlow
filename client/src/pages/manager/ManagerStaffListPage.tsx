@@ -82,7 +82,12 @@ export function ManagerStaffListPage() {
 
   const isEditing = Boolean(formState?.staff)
   const hasActiveFilters = Boolean(searchTerm || roleFilter !== 'ALL' || statusFilter !== 'ALL')
-  const hasEditChanges = Boolean(formState?.staff && (formState.name !== formState.staff.name || formState.username !== formState.staff.username || formState.email !== formState.staff.email || formState.role !== formState.staff.role))
+  const hasEditChanges = Boolean(formState?.staff && (
+    formState.name.trim() !== formState.staff.name
+    || formState.username.trim() !== formState.staff.username
+    || formState.email.trim() !== formState.staff.email
+    || formState.role !== formState.staff.role
+  ))
 
   function resetFilters() { setRoleFilter('ALL'); setSearchTerm(''); setStatusFilter('ALL') }
   function openCreateForm() { setFormError(null); setFormState({ active: true, email: '', name: '', password: '', role: 'WAITER', username: '' }) }
@@ -107,6 +112,10 @@ export function ManagerStaffListPage() {
         if (username !== formState.staff.username) update.username = username
         if (email !== formState.staff.email) update.email = email
         if (formState.role !== formState.staff.role) update.role = formState.role
+        if (Object.keys(update).length === 0) {
+          setFormState(null)
+          return
+        }
         await updateManagerStaff(formState.staff.id, update)
         toast.success('Đã cập nhật nhân viên.')
       } else {
