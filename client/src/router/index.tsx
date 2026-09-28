@@ -9,6 +9,7 @@ import { FrontendFoundationPage } from '../pages/FrontendFoundationPage'
 import { NotFoundPage } from '../pages/NotFoundPage'
 import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
+import { ManagerCurrentOrdersPage } from '../pages/manager/ManagerCurrentOrdersPage'
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerStaffListPage } from '../pages/manager/ManagerStaffListPage'
@@ -84,6 +85,14 @@ const router = createBrowserRouter([
   {
     path: '/manager/tables',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerTableListPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/orders',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerCurrentOrdersPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/orders/:orderId',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><Navigate replace to="/manager/orders" /></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/staff',
