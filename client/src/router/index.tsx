@@ -12,6 +12,7 @@ import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPag
 import { ManagerCurrentOrdersPage } from '../pages/manager/ManagerCurrentOrdersPage'
 import { ManagerCurrentOrderDetailPage } from '../pages/manager/ManagerCurrentOrderDetailPage'
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
+import { ManagerHistoryPage } from '../pages/manager/ManagerHistoryPage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerStaffListPage } from '../pages/manager/ManagerStaffListPage'
 import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
@@ -94,6 +95,14 @@ const router = createBrowserRouter([
   {
     path: '/manager/orders/:orderId',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerCurrentOrderDetailPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/history',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerHistoryPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/history/:orderId',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><Navigate replace to="/manager/history" /></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/staff',
