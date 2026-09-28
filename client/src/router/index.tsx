@@ -14,6 +14,7 @@ import { ManagerCurrentOrderDetailPage } from '../pages/manager/ManagerCurrentOr
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 import { ManagerHistoryPage } from '../pages/manager/ManagerHistoryPage'
 import { ManagerHistoricalOrderDetailPage } from '../pages/manager/ManagerHistoricalOrderDetailPage'
+import { ManagerRevenuePage } from '../pages/manager/ManagerRevenuePage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerStaffListPage } from '../pages/manager/ManagerStaffListPage'
 import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
@@ -104,6 +105,10 @@ const router = createBrowserRouter([
   {
     path: '/manager/history/:orderId',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerHistoricalOrderDetailPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/revenue',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerRevenuePage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/staff',
