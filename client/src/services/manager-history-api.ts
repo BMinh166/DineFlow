@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ManagerHistoryFilters, ManagerHistoryOrder } from '../types/manager-history'
+import type { ManagerHistoricalOrder, ManagerHistoryFilters, ManagerHistoryOrder } from '../types/manager-history'
 
 interface ApiSuccessResponse<T> {
   success: true
@@ -13,4 +13,9 @@ export async function getManagerHistory(filters: ManagerHistoryFilters = {}): Pr
 
   const response = await api.get<ApiSuccessResponse<{ orders: ManagerHistoryOrder[] }>>('/manager/history', { params })
   return response.data.data.orders
+}
+
+export async function getManagerHistoricalOrder(orderId: string): Promise<ManagerHistoricalOrder> {
+  const response = await api.get<ApiSuccessResponse<{ order: ManagerHistoricalOrder }>>(`/manager/history/${orderId}`)
+  return response.data.data.order
 }
