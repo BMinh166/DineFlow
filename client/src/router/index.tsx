@@ -18,6 +18,7 @@ import { ManagerRevenuePage } from '../pages/manager/ManagerRevenuePage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerStaffListPage } from '../pages/manager/ManagerStaffListPage'
 import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
+import { ManagerTopDishesPage } from '../pages/manager/ManagerTopDishesPage'
 import { PublicMenuPage } from '../pages/customer/PublicMenuPage'
 import { CustomerCurrentOrderPage } from '../pages/customer/CustomerCurrentOrderPage'
 import { KitchenQueuePage } from '../pages/kitchen/KitchenQueuePage'
@@ -109,6 +110,10 @@ const router = createBrowserRouter([
   {
     path: '/manager/revenue',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerRevenuePage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/top-dishes',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerTopDishesPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/staff',

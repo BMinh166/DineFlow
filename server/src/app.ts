@@ -16,6 +16,7 @@ import { managerHistoryRouter } from './routes/manager-history.routes.js'
 import { managerRevenueRouter } from './routes/manager-revenue.routes.js'
 import { managerStaffRouter } from './routes/manager-staff.routes.js'
 import { managerTableRouter } from './routes/manager-table.routes.js'
+import { managerTopDishesRouter } from './routes/manager-top-dishes.routes.js'
 import { publicMenuRouter } from './routes/public-menu.routes.js'
 import { publicTableRouter } from './routes/public-table.routes.js'
 import { waiterTableRouter } from './routes/waiter-table.routes.js'
@@ -39,6 +40,7 @@ app.use('/api/manager/history', managerHistoryRouter)
 app.use('/api/manager/revenue', managerRevenueRouter)
 app.use('/api/manager/staff', managerStaffRouter)
 app.use('/api/manager/tables', managerTableRouter)
+app.use('/api/manager/top-dishes', managerTopDishesRouter)
 app.use('/api/public/menu', publicMenuRouter)
 app.use('/api/public/tables', publicTableRouter)
 app.use('/api/waiter/tables', waiterTableRouter)
