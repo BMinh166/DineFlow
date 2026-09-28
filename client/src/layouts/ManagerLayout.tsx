@@ -29,6 +29,12 @@ function ManagerNavigation() {
       <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} to="/manager/history">
         Lịch sử
       </NavLink>
+      <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} to="/manager/revenue">
+        Doanh thu
+      </NavLink>
+      <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} to="/manager/top-dishes">
+        Món bán chạy
+      </NavLink>
       <NavLink className={({ isActive }) => `min-h-11 rounded-control px-3 py-2 text-label ${isActive ? 'bg-brand-soft text-brand' : 'text-content-secondary hover:bg-surface-muted hover:text-content'}`} to="/manager/staff">
         Nhân viên
       </NavLink>

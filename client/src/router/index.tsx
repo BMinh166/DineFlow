@@ -11,12 +11,15 @@ import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
 import { ManagerCurrentOrdersPage } from '../pages/manager/ManagerCurrentOrdersPage'
 import { ManagerCurrentOrderDetailPage } from '../pages/manager/ManagerCurrentOrderDetailPage'
+import { ManagerDashboardPage } from '../pages/manager/ManagerDashboardPage'
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 import { ManagerHistoryPage } from '../pages/manager/ManagerHistoryPage'
 import { ManagerHistoricalOrderDetailPage } from '../pages/manager/ManagerHistoricalOrderDetailPage'
+import { ManagerRevenuePage } from '../pages/manager/ManagerRevenuePage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerStaffListPage } from '../pages/manager/ManagerStaffListPage'
 import { ManagerTableListPage } from '../pages/manager/ManagerTableListPage'
+import { ManagerTopDishesPage } from '../pages/manager/ManagerTopDishesPage'
 import { PublicMenuPage } from '../pages/customer/PublicMenuPage'
 import { CustomerCurrentOrderPage } from '../pages/customer/CustomerCurrentOrderPage'
 import { KitchenQueuePage } from '../pages/kitchen/KitchenQueuePage'
@@ -75,7 +78,7 @@ const router = createBrowserRouter([
   },
   {
     path: '/manager',
-    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout /></RoleRoute></ProtectedRoute>,
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerDashboardPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/categories',
@@ -104,6 +107,14 @@ const router = createBrowserRouter([
   {
     path: '/manager/history/:orderId',
     element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerHistoricalOrderDetailPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/revenue',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerRevenuePage /></ManagerLayout></RoleRoute></ProtectedRoute>,
+  },
+  {
+    path: '/manager/top-dishes',
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerTopDishesPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/staff',
