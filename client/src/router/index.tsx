@@ -10,6 +10,7 @@ import { NotFoundPage } from '../pages/NotFoundPage'
 import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
 import { ManagerCurrentOrdersPage } from '../pages/manager/ManagerCurrentOrdersPage'
+import { ManagerCurrentOrderDetailPage } from '../pages/manager/ManagerCurrentOrderDetailPage'
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 import { ManagerQrCodePage } from '../pages/manager/ManagerQrCodePage'
 import { ManagerStaffListPage } from '../pages/manager/ManagerStaffListPage'
@@ -92,7 +93,7 @@ const router = createBrowserRouter([
   },
   {
     path: '/manager/orders/:orderId',
-    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><Navigate replace to="/manager/orders" /></RoleRoute></ProtectedRoute>,
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerCurrentOrderDetailPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/staff',
