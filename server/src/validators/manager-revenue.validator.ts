@@ -79,6 +79,10 @@ function queryForPreset(period: Exclude<RevenuePeriod, 'CUSTOM_RANGE'>): Manager
   }
 }
 
+export function getTodayManagerRevenueQuery(): ManagerRevenueQuery {
+  return queryForPreset('TODAY')
+}
+
 const revenueQueryInputSchema = z.object({
   period: z.enum(REVENUE_PERIODS).optional(),
   dateFrom: z.string().optional(),

@@ -11,6 +11,7 @@ import { healthRouter } from './routes/health.routes.js'
 import { kitchenQueueRouter } from './routes/kitchen-queue.routes.js'
 import { managerCategoryRouter } from './routes/manager-category.routes.js'
 import { managerCurrentOrderRouter } from './routes/manager-current-order.routes.js'
+import { managerDashboardRouter } from './routes/manager-dashboard.routes.js'
 import { managerDishRouter } from './routes/manager-dish.routes.js'
 import { managerHistoryRouter } from './routes/manager-history.routes.js'
 import { managerRevenueRouter } from './routes/manager-revenue.routes.js'
@@ -34,6 +35,7 @@ app.use('/api/customer/orders', customerOrderRouter)
 app.use('/api/health', healthRouter)
 app.use('/api/kitchen/queue', kitchenQueueRouter)
 app.use('/api/manager/categories', managerCategoryRouter)
+app.use('/api/manager/dashboard', managerDashboardRouter)
 app.use('/api/manager/orders', managerCurrentOrderRouter)
 app.use('/api/manager/dishes', managerDishRouter)
 app.use('/api/manager/history', managerHistoryRouter)

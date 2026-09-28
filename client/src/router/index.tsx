@@ -11,6 +11,7 @@ import { StaffLoginPage } from '../pages/auth/StaffLoginPage'
 import { ManagerCategoryListPage } from '../pages/manager/ManagerCategoryListPage'
 import { ManagerCurrentOrdersPage } from '../pages/manager/ManagerCurrentOrdersPage'
 import { ManagerCurrentOrderDetailPage } from '../pages/manager/ManagerCurrentOrderDetailPage'
+import { ManagerDashboardPage } from '../pages/manager/ManagerDashboardPage'
 import { ManagerDishListPage } from '../pages/manager/ManagerDishListPage'
 import { ManagerHistoryPage } from '../pages/manager/ManagerHistoryPage'
 import { ManagerHistoricalOrderDetailPage } from '../pages/manager/ManagerHistoricalOrderDetailPage'
@@ -77,7 +78,7 @@ const router = createBrowserRouter([
   },
   {
     path: '/manager',
-    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout /></RoleRoute></ProtectedRoute>,
+    element: <ProtectedRoute><RoleRoute allowedRoles={['MANAGER']}><ManagerLayout><ManagerDashboardPage /></ManagerLayout></RoleRoute></ProtectedRoute>,
   },
   {
     path: '/manager/categories',
