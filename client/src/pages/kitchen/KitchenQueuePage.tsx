@@ -47,18 +47,17 @@ function formatOrderedAt(orderedAt: string): string {
 }
 
 function KitchenTicket({
-  actionItemId,
+  actionItemIds,
   onComplete,
   onStartPreparing,
   ticket,
 }: {
-  actionItemId: string | null
+  actionItemIds: ReadonlySet<string>
   onComplete: (ticket: KitchenQueueTicket) => void
   onStartPreparing: (ticket: KitchenQueueTicket) => void
   ticket: KitchenQueueTicket
 }) {
-  const isActionPending = actionItemId === ticket.itemId
-  const isAnyActionPending = actionItemId !== null
+  const isActionPending = actionItemIds.has(ticket.itemId)
 
   return (
     <article className="flex h-full flex-col rounded-card border border-kitchen-border bg-kitchen-surface p-5 shadow-card">
@@ -88,7 +87,7 @@ function KitchenTicket({
           <Button
             aria-label={`Bắt đầu chế biến ${ticket.dishNameSnapshot} tại Bàn ${ticket.tableNumber}`}
             className="w-full !bg-kitchen-action !text-content hover:!bg-kitchen-action-hover"
-            disabled={isAnyActionPending}
+            disabled={isActionPending}
             loading={isActionPending}
             onClick={() => onStartPreparing(ticket)}
           >
@@ -102,7 +101,7 @@ function KitchenTicket({
           <Button
             aria-label={`Hoàn thành ${ticket.dishNameSnapshot} tại Bàn ${ticket.tableNumber}`}
             className="w-full"
-            disabled={isAnyActionPending}
+            disabled={isActionPending}
             loading={isActionPending}
             onClick={() => onComplete(ticket)}
           >
@@ -121,12 +120,12 @@ function KitchenTicket({
 export function KitchenQueuePage() {
   const toast = useToast()
   const [activeTab, setActiveTab] = useState<KitchenTab>('PENDING')
-  const [actionItemId, setActionItemId] = useState<string | null>(null)
+  const [actionItemIds, setActionItemIds] = useState<Set<string>>(() => new Set())
   const [backgroundErrorMessage, setBackgroundErrorMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [tickets, setTickets] = useState<KitchenQueueTicket[]>([])
-  const actionItemIdRef = useRef<string | null>(null)
+  const actionItemIdsRef = useRef(new Set<string>())
   const hasLoadedQueueRef = useRef(false)
   const latestRequestId = useRef(0)
   const queueRequestPromiseRef = useRef<Promise<boolean> | null>(null)
@@ -178,7 +177,7 @@ export function KitchenQueuePage() {
   useEffect(() => {
     void loadQueue({ force: true })
     const pollingTimer = window.setInterval(() => {
-      if (actionItemIdRef.current) return
+      if (actionItemIdsRef.current.size > 0) return
       void loadQueue({ background: true })
     }, pollingIntervalMs)
 
@@ -199,10 +198,10 @@ export function KitchenQueuePage() {
   )
 
   async function handleTransition(ticket: KitchenQueueTicket, transition: () => Promise<unknown>, successMessage: string) {
-    if (actionItemIdRef.current) return
+    if (actionItemIdsRef.current.has(ticket.itemId)) return
 
-    actionItemIdRef.current = ticket.itemId
-    setActionItemId(ticket.itemId)
+    actionItemIdsRef.current.add(ticket.itemId)
+    setActionItemIds(new Set(actionItemIdsRef.current))
     try {
       await transition()
       toast.success(successMessage)
@@ -216,8 +215,8 @@ export function KitchenQueuePage() {
         toast.error(getApiErrorMessage(error, 'Không thể cập nhật trạng thái món. Vui lòng thử lại.'))
       }
     } finally {
-      actionItemIdRef.current = null
-      setActionItemId(null)
+      actionItemIdsRef.current.delete(ticket.itemId)
+      setActionItemIds(new Set(actionItemIdsRef.current))
     }
   }
 
@@ -248,7 +247,7 @@ export function KitchenQueuePage() {
         <Button
           aria-label="Làm mới hàng đợi bếp"
           className="border-kitchen-border !bg-kitchen-surface !text-kitchen-text hover:!bg-kitchen-surface-hover"
-          disabled={isLoading || actionItemId !== null}
+          disabled={isLoading}
           onClick={() => void loadQueue({ background: hasLoadedQueueRef.current, force: true })}
           variant="secondary"
         >
@@ -309,7 +308,7 @@ export function KitchenQueuePage() {
         <section aria-label={tabLabels[activeTab]} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibleTickets.map(ticket => (
             <KitchenTicket
-              actionItemId={actionItemId}
+              actionItemIds={actionItemIds}
               key={ticket.itemId}
               onComplete={handleComplete}
               onStartPreparing={handleStartPreparing}
