@@ -82,7 +82,7 @@ export function ManagerDashboardPage() {
                 {dashboard.topDishes.map((dish, index) => (
                   <li className="flex items-center gap-4 py-3" key={`${dish.dishId}-${dish.dishName}`}>
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-pill bg-brand-soft text-label font-semibold text-brand">{index + 1}</span>
-                    <span className="min-w-0 flex-1 truncate text-compact font-medium text-content">{dish.dishName}</span>
+                    <span className="min-w-0 flex-1 break-words text-compact font-medium text-content">{dish.dishName}</span>
                     <span className="shrink-0 text-compact text-content-secondary">{dish.quantity} đã bán</span>
                   </li>
                 ))}

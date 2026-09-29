@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { Button, Card, EmptyState, ErrorState, PageHeader, PageLoading, StatusBadge } from '../../components/ui'
@@ -57,6 +57,7 @@ export function ManagerCurrentOrdersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
+        actions={<Button disabled={isLoading} onClick={() => setReloadKey(key => key + 1)} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>}
         description="Theo dõi các đơn đang được phục vụ và chờ thanh toán."
         title="Đơn hiện tại"
       />
