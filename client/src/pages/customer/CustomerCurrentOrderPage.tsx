@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import { Button, ConfirmDialog, EmptyState, ErrorState, PageLoading, StatusBadge, useToast } from '../../components/ui'
 import { useCustomerSession } from '../../hooks/useCustomerSession'
 import { getCustomerCurrentOrder, getCustomerCurrentOrderErrorKind, requestCustomerOrderPayment, type CustomerCurrentOrder } from '../../services/customer-order-api'
+import { getPublicTable } from '../../services/public-menu-api'
 import { formatVnd } from '../../utils/format-vnd'
 
 type CurrentOrderViewState = 'idle' | 'loading' | 'not-found' | 'error'
@@ -16,6 +17,7 @@ export function CustomerCurrentOrderPage() {
   const { isAuthorizedForTable, sessionExpired, status } = useCustomerSession()
   const [order, setOrder] = useState<CustomerCurrentOrder | null>(null)
   const [orderTableId, setOrderTableId] = useState<string | null>(null)
+  const [tableNumber, setTableNumber] = useState<number | null>(null)
   const [viewState, setViewState] = useState<CurrentOrderViewState>('loading')
   const [reloadKey, setReloadKey] = useState(0)
   const [hasBackgroundRefreshError, setHasBackgroundRefreshError] = useState(false)
@@ -24,6 +26,22 @@ export function CustomerCurrentOrderPage() {
   const isAuthorized = isAuthorizedForTable(tableId)
   const currentOrder = orderTableId === tableId ? order : null
   const toast = useToast()
+
+  useEffect(() => {
+    let isCurrent = true
+
+    void getPublicTable(tableId)
+      .then(table => {
+        if (isCurrent) setTableNumber(table.number)
+      })
+      .catch(() => {
+        if (isCurrent) setTableNumber(null)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [tableId])
 
   useEffect(() => {
     let isCurrent = true
@@ -119,6 +137,7 @@ export function CustomerCurrentOrderPage() {
         <div>
           <p className="text-label text-brand">Đơn của bạn</p>
           <h1 className="mt-1 text-page-title text-content">Đơn hiện tại</h1>
+          {tableNumber !== null && <p className="mt-1 text-compact text-content-secondary">Bàn {tableNumber}</p>}
         </div>
         <div className="flex items-center gap-3"><StatusBadge entity="order" status={currentOrder.status} /><Button aria-label="Làm mới đơn hiện tại" onClick={() => setReloadKey(key => key + 1)} size="sm" variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button></div>
       </header>
@@ -155,7 +174,7 @@ export function CustomerCurrentOrderPage() {
           <div className="flex flex-wrap gap-2">{canAddItems && <Link className="inline-flex min-h-10 items-center justify-center rounded-control border border-border bg-surface px-4 py-2 text-label font-semibold text-content transition-colors hover:bg-surface-muted" to={menuPath}>Gọi thêm món</Link>}{canAddItems && <Button onClick={() => setIsPaymentRequestDialogOpen(true)} variant="secondary">Yêu cầu thanh toán</Button>}</div>
         </div>
       </section>
-      <ConfirmDialog cancelLabel="Hủy" confirmLabel="Gửi yêu cầu" description="Sau khi gửi yêu cầu, đơn này sẽ được khóa và bạn sẽ không thể gọi thêm món." isOpen={isPaymentRequestDialogOpen} onClose={() => setIsPaymentRequestDialogOpen(false)} onConfirm={handleRequestPayment} onError={() => { setIsPaymentRequestDialogOpen(false); setReloadKey(key => key + 1); toast.error('Không thể xác nhận yêu cầu thanh toán. Đơn đang được tải lại.'); }} title="Yêu cầu thanh toán?" />
+      <ConfirmDialog cancelLabel="Hủy" confirmLabel="Gửi yêu cầu" description={<><span className="block">{tableNumber !== null ? `Bàn ${tableNumber}. ` : ''}Tổng thanh toán hiện tại: {formatVnd(currentOrder.total)}.</span><span className="mt-2 block">Sau khi gửi yêu cầu, đơn này sẽ được khóa và bạn sẽ không thể gọi thêm món.</span></>} isOpen={isPaymentRequestDialogOpen} onClose={() => setIsPaymentRequestDialogOpen(false)} onConfirm={handleRequestPayment} onError={() => { setIsPaymentRequestDialogOpen(false); setReloadKey(key => key + 1); toast.error('Không thể xác nhận yêu cầu thanh toán. Đơn đang được tải lại.'); }} title="Yêu cầu thanh toán?" />
     </div>
   )
 }
