@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import { Button, ConfirmDialog, Drawer, EmptyState, IconButton, useToast } from '../../components/ui'
 import { useCustomerCart } from '../../hooks/useCustomerCart'
@@ -27,6 +28,7 @@ export function CustomerCartDrawer({ isOrderingLocked, onOrderLocked, tableId }:
   const { clearCart, decreaseQuantity, displayTotal, increaseQuantity, itemCount, items, removeItem, setSubmissionPending } = useCustomerCart(tableId)
   const { isAuthorizedForTable, status } = useCustomerSession()
   const toast = useToast()
+  const navigate = useNavigate()
   const isAuthorized = isAuthorizedForTable(tableId)
   const canPlaceOrder = items.length > 0 && isAuthorized && !isOrderingLocked && !isSubmitting
 
@@ -43,6 +45,7 @@ export function CustomerCartDrawer({ isOrderingLocked, onOrderLocked, tableId }:
       clearCart()
       setIsOpen(false)
       toast.success('Đặt món thành công.')
+      navigate(`/table/${encodeURIComponent(tableId)}/order`)
     } catch (error) {
       const errorKind = getCustomerOrderErrorKind(error)
       setSubmissionError(orderErrorMessages[errorKind])
