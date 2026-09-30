@@ -60,7 +60,7 @@ export function CustomerCartDrawer({ isOrderingLocked, onOrderLocked, tableId }:
     <>
       <Button aria-label={`Mở giỏ hàng, ${itemCount} món`} onClick={() => setIsOpen(true)} variant="secondary"><ShoppingCart aria-hidden="true" className="size-4" />Giỏ hàng{itemCount > 0 ? ` (${itemCount})` : ''}</Button>
       <Drawer
-        footer={items.length > 0 ? <div className="space-y-3"><div className="flex items-center justify-between gap-4"><div><p className="text-caption text-content-secondary">Tạm tính</p><p className="text-price text-content">{formatVnd(displayTotal)}</p></div><Button disabled={isSubmitting} onClick={clearCart} variant="secondary">Xóa giỏ</Button></div><Button className="w-full" disabled={!canPlaceOrder} onClick={() => setIsReviewOpen(true)}>Đặt món</Button></div> : undefined}
+        footer={items.length > 0 ? <div className="space-y-3"><div className="flex items-center justify-between gap-4"><div><p className="text-caption text-content-secondary">Tạm tính</p><p className="text-price text-content">{formatVnd(displayTotal)}</p></div><Button disabled={isSubmitting || isOrderingLocked} onClick={clearCart} variant="secondary">Xóa giỏ</Button></div><Button className="w-full" disabled={!canPlaceOrder} onClick={() => setIsReviewOpen(true)}>Đặt món</Button></div> : undefined}
         isOpen={isOpen}
         onClose={() => !isSubmitting && setIsOpen(false)}
         title="Giỏ hàng"
