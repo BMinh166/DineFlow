@@ -163,12 +163,12 @@ function TableCard({ onOpen, onViewSession, openingTableId, table }: {
   return (
     <Card className={`h-full p-5 ${isPaymentRequested ? 'border-danger bg-danger-soft/30' : ''}`}>
       <div className="flex h-full flex-col gap-4">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2"><TableProperties aria-hidden="true" className="size-5 shrink-0 text-brand" /><h2 className="text-subsection text-content">Bàn {table.number}</h2></div>
             <p className="mt-2 text-compact text-content-secondary">{getTableDescription(table)}</p>
           </div>
-          <div aria-label={`Trạng thái bàn ${table.number}`} className="flex shrink-0 flex-wrap justify-end gap-2">
+          <div aria-label={`Trạng thái bàn ${table.number}`} className="flex flex-wrap gap-2 sm:shrink-0 sm:justify-end">
             {isPaymentRequested && <Badge variant="danger">Yêu cầu thanh toán</Badge>}
             <StatusBadge entity="table" status={table.status} />
           </div>
