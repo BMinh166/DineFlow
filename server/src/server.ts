@@ -7,7 +7,7 @@ async function startServer(): Promise<void> {
     assertProductionEnvironment()
     await connectDatabase()
 
-    app.listen(env.port, () => {
+    app.listen(env.port, '0.0.0.0', () => {
       console.log(`DineFlow server listening on port ${env.port}`)
     })
   } catch (error) {
