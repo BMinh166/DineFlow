@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Banknote, ChefHat, RefreshCw, Table2, Trophy } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -11,25 +11,42 @@ import { formatVnd } from '../../utils/format-vnd'
 export function ManagerDashboardPage() {
   const [dashboard, setDashboard] = useState<ManagerDashboard | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [backgroundErrorMessage, setBackgroundErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const hasLoadedDashboardRef = useRef(false)
 
   useEffect(() => {
     const controller = new AbortController()
 
     async function loadDashboard() {
-      setIsLoading(true)
-      setErrorMessage(null)
+      const isBackgroundRefresh = hasLoadedDashboardRef.current
+      if (isBackgroundRefresh) setIsRefreshing(true)
+      else {
+        setIsLoading(true)
+        setErrorMessage(null)
+      }
 
       try {
         const result = await getManagerDashboard(controller.signal)
-        if (!controller.signal.aborted) setDashboard(result)
+        if (!controller.signal.aborted) {
+          setDashboard(result)
+          setErrorMessage(null)
+          setBackgroundErrorMessage(null)
+          hasLoadedDashboardRef.current = true
+        }
       } catch (error) {
         if (!controller.signal.aborted) {
-          setErrorMessage(getApiErrorMessage(error, 'Không thể tải tổng quan quản lý. Vui lòng thử lại.'))
+          const message = getApiErrorMessage(error, 'Không thể tải tổng quan quản lý. Vui lòng thử lại.')
+          if (isBackgroundRefresh) setBackgroundErrorMessage(message)
+          else setErrorMessage(message)
         }
       } finally {
-        if (!controller.signal.aborted) setIsLoading(false)
+        if (!controller.signal.aborted) {
+          if (isBackgroundRefresh) setIsRefreshing(false)
+          else setIsLoading(false)
+        }
       }
     }
 
@@ -40,7 +57,7 @@ export function ManagerDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        actions={<Button disabled={isLoading} onClick={() => setReloadKey(key => key + 1)} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>}
+        actions={<Button disabled={isLoading || isRefreshing} loading={isRefreshing} onClick={() => setReloadKey(key => key + 1)} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>}
         description="Tổng quan vận hành và kinh doanh từ dữ liệu hiện tại."
         title="Dashboard"
       />
@@ -53,6 +70,7 @@ export function ManagerDashboardPage() {
           title="Không thể tải tổng quan quản lý"
         />
       )}
+      {!isLoading && !errorMessage && backgroundErrorMessage && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">Không thể cập nhật tổng quan mới nhất. Dữ liệu gần nhất vẫn đang được hiển thị.</p>}
       {!isLoading && !errorMessage && dashboard && (
         <>
           <section aria-label="Chỉ số tổng quan" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
