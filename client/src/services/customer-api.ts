@@ -5,11 +5,17 @@ import { clearCustomerSessionToken, getCustomerSessionToken } from './customer-s
 const defaultApiBaseUrl = 'http://localhost:3000/api'
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
 
-if (!configuredApiBaseUrl && import.meta.env.PROD) {
-  throw new Error('VITE_API_BASE_URL must be configured for production.')
+function getProductionApiBaseUrl(): string {
+  if (!configuredApiBaseUrl) {
+    throw new Error('VITE_API_BASE_URL must be configured for production.')
+  }
+
+  return configuredApiBaseUrl
 }
 
-const apiBaseUrl = configuredApiBaseUrl || defaultApiBaseUrl
+const apiBaseUrl = import.meta.env.PROD
+  ? getProductionApiBaseUrl()
+  : configuredApiBaseUrl || defaultApiBaseUrl
 
 export const customerApi = axios.create({
   baseURL: apiBaseUrl,
