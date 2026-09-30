@@ -62,7 +62,7 @@ function KitchenTicket({
   return (
     <article className="flex h-full flex-col rounded-card border border-kitchen-border bg-kitchen-surface p-5 shadow-card">
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <p className="text-label text-kitchen-text-secondary">Bàn {formatTableNumber(ticket.tableNumber)}</p>
           <h2 className="mt-2 break-words text-section-title text-kitchen-text">{ticket.dishNameSnapshot}</h2>
         </div>
@@ -124,6 +124,7 @@ export function KitchenQueuePage() {
   const [backgroundErrorMessage, setBackgroundErrorMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isManualRefreshPending, setIsManualRefreshPending] = useState(false)
   const [tickets, setTickets] = useState<KitchenQueueTicket[]>([])
   const actionItemIdsRef = useRef(new Set<string>())
   const hasLoadedQueueRef = useRef(false)
@@ -236,6 +237,17 @@ export function KitchenQueuePage() {
     )
   }
 
+  async function handleManualRefresh() {
+    if (isLoading || isManualRefreshPending) return
+
+    setIsManualRefreshPending(true)
+    try {
+      await loadQueue({ background: hasLoadedQueueRef.current, force: true })
+    } finally {
+      setIsManualRefreshPending(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
@@ -247,8 +259,9 @@ export function KitchenQueuePage() {
         <Button
           aria-label="Làm mới hàng đợi bếp"
           className="border-kitchen-border !bg-kitchen-surface !text-kitchen-text hover:!bg-kitchen-surface-hover"
-          disabled={isLoading}
-          onClick={() => void loadQueue({ background: hasLoadedQueueRef.current, force: true })}
+          disabled={isLoading || isManualRefreshPending}
+          loading={isManualRefreshPending}
+          onClick={() => void handleManualRefresh()}
           variant="secondary"
         >
           <RefreshCw aria-hidden="true" className="size-4" />Làm mới

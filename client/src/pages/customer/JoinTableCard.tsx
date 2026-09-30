@@ -86,7 +86,7 @@ export function JoinTableCard({ tableId }: JoinTableCardProps) {
             <h2 className="text-subsection text-content">Vào bàn</h2>
             <p className="mt-1 text-compact text-content-secondary">Nhập mã 4 chữ số do nhân viên cung cấp để xác nhận phục vụ tại bàn.</p>
           </div>
-          <Button disabled={status === 'restoring'} onClick={openModal}><KeyRound aria-hidden="true" className="size-4" />Nhập mã bàn</Button>
+          <Button disabled={status === 'restoring'} loading={status === 'restoring'} onClick={openModal}><KeyRound aria-hidden="true" className="size-4" />Nhập mã bàn</Button>
         </div>
         {status === 'restoring' && <p className="mt-3 text-caption text-content-secondary" role="status">Đang kiểm tra trạng thái vào bàn...</p>}
       </section>

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useStaffAuth } from '../../hooks/useStaffAuth'
+import { Button } from '../../components/ui'
 import { getStaffRoleHomePath } from '../../utils/staff-role-route'
 import { getLoginErrorMessage } from './login-error'
 
@@ -84,9 +85,7 @@ export function StaffLoginPage() {
             <input autoComplete="current-password" className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2.5 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20" disabled={isSubmitting} id="staff-password" onChange={event => setPassword(event.target.value)} required type="password" value={password} />
           </div>
           {errorMessage && <p aria-live="polite" className="rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{errorMessage}</p>}
-          <button className="w-full rounded-lg bg-brand px-4 py-3 font-semibold text-surface hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting} type="submit">
-            {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
-          </button>
+          <Button className="w-full" loading={isSubmitting} type="submit">{isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}</Button>
         </form>
       </section>
     </main>

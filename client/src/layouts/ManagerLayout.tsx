@@ -61,8 +61,8 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-app text-content md:flex">
-      <aside className="manager-chrome hidden w-64 shrink-0 border-r border-border bg-surface p-4 md:flex md:flex-col">
+    <div className="min-h-screen bg-app text-content lg:flex">
+      <aside className="manager-chrome hidden w-64 shrink-0 border-r border-border bg-surface p-4 lg:flex lg:flex-col">
         <AppLogo />
         <p className="mt-1 text-caption text-content-secondary">Khu vực quản lý</p>
         <div className="mt-8"><ManagerNavigation /></div>
@@ -72,7 +72,7 @@ export function ManagerLayout({ children }: ManagerLayoutProps) {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="manager-chrome flex min-h-16 items-center gap-3 border-b border-border bg-surface px-4 md:hidden">
+        <header className="manager-chrome flex min-h-16 items-center gap-3 border-b border-border bg-surface px-4 lg:hidden">
           <IconButton aria-label="Mở điều hướng quản lý" icon={Menu} onClick={() => setIsNavigationOpen(true)} />
           <AppLogo />
         </header>

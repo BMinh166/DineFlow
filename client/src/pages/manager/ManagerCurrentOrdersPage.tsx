@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ClipboardList, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -27,24 +27,42 @@ function formatOrderId(orderId: string): string {
 export function ManagerCurrentOrdersPage() {
   const navigate = useNavigate()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [backgroundErrorMessage, setBackgroundErrorMessage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [orders, setOrders] = useState<ManagerCurrentOrder[]>([])
   const [reloadKey, setReloadKey] = useState(0)
+  const hasLoadedOrdersRef = useRef(false)
 
   useEffect(() => {
     let isCurrent = true
 
     async function loadOrders() {
-      setIsLoading(true)
-      setErrorMessage(null)
+      const isBackgroundRefresh = hasLoadedOrdersRef.current
+      if (isBackgroundRefresh) setIsRefreshing(true)
+      else {
+        setIsLoading(true)
+        setErrorMessage(null)
+      }
 
       try {
         const result = await getManagerCurrentOrders()
-        if (isCurrent) setOrders(result)
+        if (isCurrent) {
+          setOrders(result)
+          setErrorMessage(null)
+          setBackgroundErrorMessage(null)
+          hasLoadedOrdersRef.current = true
+        }
       } catch {
-        if (isCurrent) setErrorMessage('Không thể tải các đơn hiện tại. Vui lòng thử lại.')
+        if (isCurrent) {
+          if (isBackgroundRefresh) setBackgroundErrorMessage('Không thể cập nhật các đơn hiện tại. Dữ liệu gần nhất vẫn đang được hiển thị.')
+          else setErrorMessage('Không thể tải các đơn hiện tại. Vui lòng thử lại.')
+        }
       } finally {
-        if (isCurrent) setIsLoading(false)
+        if (isCurrent) {
+          if (isBackgroundRefresh) setIsRefreshing(false)
+          else setIsLoading(false)
+        }
       }
     }
 
@@ -57,7 +75,7 @@ export function ManagerCurrentOrdersPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        actions={<Button disabled={isLoading} onClick={() => setReloadKey(key => key + 1)} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>}
+        actions={<Button disabled={isLoading || isRefreshing} loading={isRefreshing} onClick={() => setReloadKey(key => key + 1)} variant="secondary"><RefreshCw aria-hidden="true" className="size-4" />Làm mới</Button>}
         description="Theo dõi các đơn đang được phục vụ và chờ thanh toán."
         title="Đơn hiện tại"
       />
@@ -70,6 +88,7 @@ export function ManagerCurrentOrdersPage() {
           title="Không thể tải đơn hiện tại"
         />
       )}
+      {!isLoading && !errorMessage && backgroundErrorMessage && <p className="rounded-control border border-warning bg-warning-soft p-3 text-compact text-warning" role="status">{backgroundErrorMessage}</p>}
       {!isLoading && !errorMessage && orders.length === 0 && (
         <EmptyState
           description="Hiện chưa có đơn nào đang hoạt động."
