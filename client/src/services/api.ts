@@ -3,7 +3,13 @@ import axios from 'axios'
 import { clearStaffToken, getStaffToken } from './staff-token-storage'
 
 const defaultApiBaseUrl = 'http://localhost:3000/api'
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim() || defaultApiBaseUrl
+const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+
+if (!configuredApiBaseUrl && import.meta.env.PROD) {
+  throw new Error('VITE_API_BASE_URL must be configured for production.')
+}
+
+const apiBaseUrl = configuredApiBaseUrl || defaultApiBaseUrl
 
 export const api = axios.create({
   baseURL: apiBaseUrl,

@@ -1,9 +1,10 @@
 import { app } from './app.js'
 import { connectDatabase } from './config/database.js'
-import { env } from './config/env.js'
+import { assertProductionEnvironment, env } from './config/env.js'
 
 async function startServer(): Promise<void> {
   try {
+    assertProductionEnvironment()
     await connectDatabase()
 
     app.listen(env.port, () => {

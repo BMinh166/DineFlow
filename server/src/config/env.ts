@@ -5,7 +5,8 @@ dotenv.config()
 const defaultPort = 3000
 const defaultClientOrigin = 'http://localhost:5173'
 const configuredPort = Number(process.env.PORT)
-const clientOrigin = process.env.CLIENT_ORIGIN?.trim() || defaultClientOrigin
+const configuredClientOrigin = process.env.CLIENT_ORIGIN?.trim()
+const clientOrigin = configuredClientOrigin || defaultClientOrigin
 const mongodbUri = process.env.MONGODB_URI?.trim()
 const nodeEnv = process.env.NODE_ENV?.trim() || 'development'
 
@@ -50,6 +51,17 @@ export function getCustomerSessionJwtConfig(): JwtConfig {
     secret,
     expiresInSeconds: 4 * 60 * 60,
   }
+}
+
+export function assertProductionEnvironment(): void {
+  if (nodeEnv !== 'production') return
+
+  if (!configuredClientOrigin) {
+    throw new Error('CLIENT_ORIGIN must be configured in production.')
+  }
+
+  getJwtConfig()
+  getCustomerSessionJwtConfig()
 }
 
 export const env = {
