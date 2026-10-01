@@ -180,4 +180,4 @@ The accepted V1.0 production topology is a static single-page application hosted
 
 ## Documentation
 
-Detailed architecture, data-model, state, authorization, API, and risk-handling documentation belongs under `docs/` and is prepared separately during Phase 29. This README remains the concise project entry point.
+See the [technical overview](docs/technical-overview.md) for the implemented architecture, data model, lifecycle, and state diagrams. Detailed authorization, API, and risk-handling documentation belongs under `docs/` and is prepared separately during Phase 29. This README remains the concise project entry point.
