@@ -180,4 +180,4 @@ The accepted V1.0 production topology is a static single-page application hosted
 
 ## Documentation
 
-See the [technical overview](docs/technical-overview.md) for the implemented architecture, data model, lifecycle, and state diagrams; the [authorization/API/risk reference](docs/authorization-api-risk.md) for backend-enforced access, implemented endpoints, and key protections; and the [pending report-asset capture guide](docs/report-assets/README.md) for real runtime evidence preparation. This README remains the concise project entry point.
+See the [technical overview](docs/technical-overview.md) for the implemented architecture, data model, lifecycle, and state diagrams; the [authorization/API/risk reference](docs/authorization-api-risk.md) for backend-enforced access, implemented endpoints, and key protections; the [reviewed report-asset guide](docs/report-assets/README.md) for real runtime evidence; and the [demo guide](docs/demo-guide.md) for the supported end-to-end presentation flow. This README remains the concise project entry point.

@@ -152,4 +152,4 @@ A screenshot may show that join-code UI exists, but it must not commit a current
 - [x] The visible `0000` Customer join input is an invalid UI placeholder, not an active join code.
 - [x] The QR image visually matches the normal Manager QR card. Source verification confirms that this UI encodes only the public `/table/:tableId` route; no credential or join-code text is displayed in the asset.
 
-The required P29-T5 asset set is reviewed and available. P29-T6 remains a separate task and is not started by this document update.
+The required P29-T5 asset set is reviewed and available. Use the [DineFlow V1.0 Demo Guide](../demo-guide.md) for the supported presentation sequence.
